@@ -1,4 +1,4 @@
-# 📝 Summary mode
+# Summary mode
 
 **Goal:** someone decides in 30 seconds whether this video is worth their time, and knows what it says if they never watch it.
 

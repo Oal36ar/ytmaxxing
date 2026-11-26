@@ -1,4 +1,4 @@
-# 🎯 Outcomes mode
+# Outcomes mode
 
 **Goal:** turn the video into decisions and actions for the user's own goal. This is the "so what do I do now" mode.
 

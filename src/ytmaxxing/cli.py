@@ -13,7 +13,7 @@ from .library import Library
 from .modes import MODES, build_guide
 from .youtube import YtmaxxingError, list_videos
 
-BANNER = "▶ ytmaxxing — turn YouTube into skills and knowledge your AI can use"
+BANNER = "ytmaxxing: turn long YouTube videos into skills, plans and notes your AI keeps"
 
 
 def _copy(text: str) -> bool:
@@ -83,7 +83,7 @@ def main(argv: list[str] | None = None) -> int:
         elif a.cmd == "prompt":
             text = cmd_prompt(a)
             if a.copy and _copy(text):
-                print(f"✅ Copied ({len(text.split()):,} words). Paste it into any AI chat.")
+                print(f"Copied ({len(text.split()):,} words). Paste it into any AI chat.")
             else:
                 print(text)
         elif a.cmd == "playlist":
@@ -95,17 +95,17 @@ def main(argv: list[str] | None = None) -> int:
             if not entries:
                 print(f"Library is empty ({lib.root}). Try: ytmaxxing transcript <youtube-url>")
             for e in entries:
-                print(f"▶ {e['title']} — {e['channel']}  [{', '.join(e['outputs']) or 'transcript'}]")
+                print(f"{e['title']} · {e['channel']}  [{', '.join(e['outputs']) or 'transcript'}]")
             for s_ in lib.skill_names():
-                print(f"🛠️  skill: {s_}")
+                print(f"skill: {s_}")
         elif a.cmd == "search":
             for h in Library().search(" ".join(a.query)):
                 print(f"{h['file']}:{h['line']}  {h['text']}")
         elif a.cmd == "modes":
             for key, m in MODES.items():
-                print(f"{m['emoji']}  {key:<10} {m['what']}")
+                print(f"{key:<10} {m['what']}")
     except YtmaxxingError as e:
-        print(f"✖ {e}", file=sys.stderr)
+        print(f"error: {e}", file=sys.stderr)
         return 1
     return 0
 

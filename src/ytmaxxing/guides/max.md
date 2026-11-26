@@ -1,4 +1,4 @@
-# 🚀 Max mode
+# Max mode
 
 **Goal:** get everything useful out of one video in one go.
 

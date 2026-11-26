@@ -5,13 +5,13 @@ from __future__ import annotations
 from importlib import resources
 
 MODES: dict[str, dict[str, str]] = {
-    "max": {"emoji": "🚀", "title": "Max", "what": "Everything useful from one video, in one go."},
-    "skill": {"emoji": "🛠️", "title": "Skill", "what": "Your AI learns how to do what the video teaches (SKILL.md)."},
-    "knowledge": {"emoji": "🧠", "title": "Knowledge", "what": "Cited notes: claims, frameworks, numbers, tools. Searchable forever."},
-    "summary": {"emoji": "📝", "title": "Summary", "what": "TL;DR, chapter by chapter, best moments, watch/skim/skip."},
-    "learn": {"emoji": "🎓", "title": "Learn", "what": "Study guide: simple explanations, quiz, practice, review plan."},
-    "outcomes": {"emoji": "🎯", "title": "Outcomes", "what": "Decisions and this-week actions for your own goal."},
-    "check": {"emoji": "🔍", "title": "Check", "what": "Compare the video with your skill, project or plan, and get upgrades."},
+    "max": {"title": "Max", "what": "Everything useful from one video, in one go."},
+    "skill": {"title": "Skill", "what": "Your AI learns how to do what the video teaches (SKILL.md)."},
+    "knowledge": {"title": "Knowledge", "what": "Cited notes: claims, frameworks, numbers, tools. Searchable forever."},
+    "summary": {"title": "Summary", "what": "TL;DR, chapter by chapter, best moments, watch/skim/skip."},
+    "learn": {"title": "Learn", "what": "Study guide: simple explanations, quiz, practice, review plan."},
+    "outcomes": {"title": "Outcomes", "what": "Decisions and this-week actions for your own goal."},
+    "check": {"title": "Check", "what": "Compare the video with your skill, project or plan, and get upgrades."},
 }
 
 

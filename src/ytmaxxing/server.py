@@ -195,7 +195,7 @@ def _register_prompts() -> None:
                 return (f"Use ytmaxxing in {mode} mode on {url}.{extra} "
                         f"Call maxx(url, mode='{mode}', goal, target) and follow the guide it returns.")
             return prompt
-        mcp.prompt(name=key, description=f"{info['emoji']} {info['what']}")(make(key))
+        mcp.prompt(name=key, description=info['what'])(make(key))
 
 
 _register_prompts()

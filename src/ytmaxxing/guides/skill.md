@@ -1,4 +1,4 @@
-# 🛠️ Skill mode
+# Skill mode
 
 **Goal:** the user's AI learns how to do what the video teaches, as an Agent Skill (a `SKILL.md` file that Claude and other agents load when the task comes up).
 

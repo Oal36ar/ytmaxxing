@@ -1,4 +1,4 @@
-# 🔍 Check mode
+# Check mode
 
 **Goal:** see where the video adds up with something the user already has (a skill, a codebase, a plan, a doc, a strategy) and turn the difference into concrete upgrades.
 

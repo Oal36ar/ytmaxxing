@@ -1,4 +1,4 @@
-# 🎓 Learn mode
+# Learn mode
 
 **Goal:** the user actually understands and remembers what the video teaches, not just has notes about it.
 

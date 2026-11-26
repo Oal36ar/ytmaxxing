@@ -1,4 +1,4 @@
-# 🧠 Knowledge mode
+# Knowledge mode
 
 **Goal:** a note an AI agent can search and trust months from now. Every useful idea in the video, structured and cited, nothing invented.
 
