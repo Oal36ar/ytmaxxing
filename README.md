@@ -2,23 +2,23 @@
 
 <img src="assets/banner.png" alt="ytmaxxing: turn long YouTube videos into skills your AI can use" width="100%">
 
-<h3>Watch it once. Your AI keeps the skill. 🧠</h3>
+<h3>Watch it once. Your AI keeps the skill.</h3>
 
 <p>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-FF2A3D?style=flat-square" alt="MIT license"></a>
-  <img src="https://img.shields.io/badge/python-3.10%2B-FF2A3D?style=flat-square&logo=python&logoColor=white" alt="Python 3.10+">
-  <img src="https://img.shields.io/badge/MCP-server-FF2A3D?style=flat-square" alt="MCP server">
-  <img src="https://img.shields.io/badge/Agent%20Skills-SKILL.md-FF2A3D?style=flat-square" alt="Agent Skills">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-111111?style=flat-square" alt="MIT license"></a>
+  <img src="https://img.shields.io/badge/python-3.10%2B-111111?style=flat-square&logo=python&logoColor=white" alt="Python 3.10+">
+  <img src="https://img.shields.io/badge/MCP-server-111111?style=flat-square" alt="MCP server">
+  <img src="https://img.shields.io/badge/Agent%20Skills-SKILL.md-111111?style=flat-square" alt="Agent Skills">
   <img src="https://img.shields.io/badge/API%20key-not%20needed-111111?style=flat-square" alt="No API key needed">
-  <a href="https://github.com/Oal36ar/ytmaxxing/stargazers"><img src="https://img.shields.io/github/stars/Oal36ar/ytmaxxing?style=flat-square&color=FF2A3D" alt="GitHub stars"></a>
+  <a href="https://github.com/Oal36ar/ytmaxxing/stargazers"><img src="https://img.shields.io/github/stars/Oal36ar/ytmaxxing?style=flat-square&color=111111" alt="GitHub stars"></a>
 </p>
 
 <p>
-  <a href="#-quick-start">Quick start</a> ·
-  <a href="#-seven-ways-to-max-a-video">Modes</a> ·
-  <a href="#-real-example-a-10-minute-tutorial-becomes-a-skill">Example</a> ·
-  <a href="#-how-it-works">How it works</a> ·
-  <a href="#-faq">FAQ</a>
+  <a href="#quick-start">Quick start</a> ·
+  <a href="#seven-ways-to-max-a-video">Modes</a> ·
+  <a href="#real-example-a-10-minute-tutorial-becomes-a-skill">Example</a> ·
+  <a href="#how-it-works">How it works</a> ·
+  <a href="#faq">FAQ</a>
 </p>
 
 </div>
@@ -33,36 +33,36 @@ It runs inside the AI you already use (Claude, Cursor, or any [MCP](https://mode
 
 ## Contents
 
-- [✨ Seven ways to max a video](#-seven-ways-to-max-a-video)
-- [🎬 Real example: a 10-minute tutorial becomes a skill](#-real-example-a-10-minute-tutorial-becomes-a-skill)
-- [⚡ Quick start](#-quick-start)
-- [💬 What to say](#-what-to-say)
-- [🧩 How it works](#-how-it-works)
-- [📚 Your library](#-your-library)
-- [⚙️ Configuration](#%EF%B8%8F-configuration)
-- [🛟 Troubleshooting](#-troubleshooting)
-- [🗺️ Roadmap](#%EF%B8%8F-roadmap)
-- [🤝 Contributing](#-contributing)
-- [❓ FAQ](#-faq)
+- [Seven ways to max a video](#seven-ways-to-max-a-video)
+- [Real example: a 10-minute tutorial becomes a skill](#real-example-a-10-minute-tutorial-becomes-a-skill)
+- [Quick start](#quick-start)
+- [What to say](#what-to-say)
+- [How it works](#how-it-works)
+- [Your library](#your-library)
+- [Configuration](#configuration)
+- [Troubleshooting](#troubleshooting)
+- [Roadmap](#roadmap)
+- [Contributing](#contributing)
+- [FAQ](#faq)
 
-## ✨ Seven ways to max a video
+## Seven ways to max a video
 
 Different videos are worth different things. Pick what you need, or let `max` do it all.
 
-| | Mode | You get | Best for |
-|---|---|---|---|
-| 🛠️ | **`skill`** | A `SKILL.md` your agent loads whenever the task comes up | Tutorials, walkthroughs, "here's exactly how I do X" |
-| 🧠 | **`knowledge`** | Claims, frameworks, numbers and tools, each cited to the second | Talks, interviews, anything you'll want to look up later |
-| 📝 | **`summary`** | TL;DR, chapter by chapter, best moments, and a watch/skim/skip verdict | Deciding if a video deserves your time |
-| 🎓 | **`learn`** | Plain explanations, key terms, a quiz and a review plan | Lectures, courses, explainers |
-| 🎯 | **`outcomes`** | Decisions and this-week actions for *your* goal | Business, strategy, career, health advice |
-| 🔍 | **`check`** | What the video adds to your skill, codebase or plan, as concrete changes | Upgrading something you already have |
-| 🚀 | **`max`** | All of the above that fit the video | When you just want everything |
+| Mode | You get | Best for |
+|---|---|---|
+| **`skill`** | A `SKILL.md` your agent loads whenever the task comes up | Tutorials, walkthroughs, "here's exactly how I do X" |
+| **`knowledge`** | Claims, frameworks, numbers and tools, each cited to the second | Talks, interviews, anything you'll want to look up later |
+| **`summary`** | TL;DR, chapter by chapter, best moments, and a watch/skim/skip verdict | Deciding if a video deserves your time |
+| **`learn`** | Plain explanations, key terms, a quiz and a review plan | Lectures, courses, explainers |
+| **`outcomes`** | Decisions and this-week actions for *your* goal | Business, strategy, career, health advice |
+| **`check`** | What the video adds to your skill, codebase or plan, as concrete changes | Upgrading something you already have |
+| **`max`** | All of the above that fit the video | When you just want everything |
 
 > [!NOTE]
 > ytmaxxing is honest about skills. If a video doesn't teach a repeatable procedure (most interviews and opinion pieces don't), it says so and makes knowledge instead of inventing steps.
 
-## 🎬 Real example: a 10-minute tutorial becomes a skill
+## Real example: a 10-minute tutorial becomes a skill
 
 Input: [*git rebase: Why, When & How to fix conflicts*](https://youtu.be/DkWDHzmMvyg) by Philomatics (9 min 44 s).
 
@@ -88,7 +88,7 @@ description: Bring the latest main-branch commits into a local feature branch wi
 
 From now on, when you ask your agent to update a branch, it follows the video's method, checks the golden rule first, and can show you the second of the video each step came from.
 
-## ⚡ Quick start
+## Quick start
 
 You need [uv](https://docs.astral.sh/uv/getting-started/installation/) (one command, installs Python tools):
 
@@ -153,31 +153,31 @@ Paste it into any chat. Swap `--mode` for `knowledge`, `summary`, `learn`, `outc
 
 </details>
 
-## 💬 What to say
+## What to say
 
 Once it's installed, just talk to your AI:
 
-- 🚀 *"Max this: https://youtu.be/…"*
-- 🛠️ *"Turn this tutorial into a skill and install it for this project."*
-- 🎯 *"Watch this and tell me what I should do this week to grow my newsletter."*
-- 🔍 *"Check this video against my `skills/deploy` skill. What should I change?"*
-- 🎓 *"Make me a study guide for this lecture and quiz me."*
-- 📺 *"List the last 10 videos on @channel and make knowledge notes for the ones about pricing."*
-- 🧠 *"What did the videos I saved say about onboarding?"*
+- *"Max this: https://youtu.be/…"*
+- *"Turn this tutorial into a skill and install it for this project."*
+- *"Watch this and tell me what I should do this week to grow my newsletter."*
+- *"Check this video against my `skills/deploy` skill. What should I change?"*
+- *"Make me a study guide for this lecture and quiz me."*
+- *"List the last 10 videos on @channel and make knowledge notes for the ones about pricing."*
+- *"What did the videos I saved say about onboarding?"*
 
 Every mode is also an MCP prompt, so in Claude Code you can type `/` and search for `ytmaxxing` to pick one.
 
-## 🧩 How it works
+## How it works
 
 ```mermaid
 flowchart LR
-    A["▶️ YouTube link<br/>video · playlist · channel"] --> B["ytmaxxing<br/>fetch + structure"]
-    B --> C["📄 Transcript<br/>chapters + timestamp links"]
+    A["YouTube link<br/>video · playlist · channel"] --> B["ytmaxxing<br/>fetch + structure"]
+    B --> C["Transcript<br/>chapters + timestamp links"]
     C --> D{"Your AI follows<br/>the mode guide"}
-    D --> E["🛠️ SKILL.md"]
-    D --> F["🧠 knowledge.md"]
-    D --> G["📝 🎓 🎯 🔍<br/>summary · learn · outcomes · check"]
-    E & F & G --> H["📚 Your library<br/>plain markdown, yours forever"]
+    D --> E["SKILL.md"]
+    D --> F["knowledge.md"]
+    D --> G["summary · learn · outcomes · check"]
+    E & F & G --> H["Your library<br/>plain markdown, yours forever"]
     H -. "search_library" .-> D
 ```
 
@@ -194,7 +194,7 @@ ytmaxxing does the parts a model is bad at: fetching captions reliably, splittin
 | `search_library` · `list_library` · `read_output` | Find what you've already maxxed |
 | `install_skill` | Copies a skill into `~/.claude/skills` or a project (only when you say so) |
 
-## 📚 Your library
+## Your library
 
 Everything lands in `~/ytmaxxing` as plain markdown, so any agent, editor or note app can read it:
 
@@ -212,7 +212,7 @@ Everything lands in `~/ytmaxxing` as plain markdown, so any agent, editor or not
 
 Point an Obsidian vault at it, commit it to a repo, or add it to a ChatGPT project.
 
-## ⚙️ Configuration
+## Configuration
 
 All optional, set as environment variables:
 
@@ -223,7 +223,7 @@ All optional, set as environment variables:
 | `YTMAXXING_PROXY` | none | Proxy URL for networks YouTube blocks (cloud servers, some VPNs) |
 | `YTMAXXING_WHISPER_MODEL` | `small` | Model for local transcription, e.g. `base`, `medium`, `large-v3` |
 
-## 🛟 Troubleshooting
+## Troubleshooting
 
 **"This video has no captions"** or **"YouTube is blocking requests"**: turn on local transcription. ytmaxxing then downloads the audio and transcribes it on your machine with [faster-whisper](https://github.com/SYSTRAN/faster-whisper):
 
@@ -235,7 +235,7 @@ On a server or cloud machine, YouTube often blocks requests outright. Set `YTMAX
 
 **The tools don't show up**: MCP servers load when a session starts. Restart your client after installing.
 
-## 🗺️ Roadmap
+## Roadmap
 
 - [x] Seven modes, cited outputs, local library, Claude Code plugin
 - [x] Playlists and channels
@@ -249,7 +249,7 @@ On a server or cloud machine, YouTube often blocks requests outright. Set `YTMAX
 
 Got an idea? [Open an issue](https://github.com/Oal36ar/ytmaxxing/issues). The most-wanted ones get built first.
 
-## 🤝 Contributing
+## Contributing
 
 Contributions are welcome, especially new modes and better guides. The guides in [`src/ytmaxxing/guides/`](src/ytmaxxing/guides) are plain markdown, so you can improve how ytmaxxing thinks without writing code.
 
@@ -262,7 +262,7 @@ uv run ytmaxxing transcript "https://youtu.be/DkWDHzmMvyg"
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for how to add a mode.
 
-## ❓ FAQ
+## FAQ
 
 <details>
 <summary><b>Is it free? Do I need an OpenAI or Anthropic key?</b></summary>
@@ -294,13 +294,13 @@ ytmaxxing is built for personal learning. Outputs are your own notes, written in
 No. ytmaxxing is an independent open-source project, not affiliated with or endorsed by YouTube or Google.
 </details>
 
-## 📄 License
+## License
 
 [MIT](LICENSE).
 
 <div align="center">
 
-**If ytmaxxing taught your AI something, give it a ⭐ so more people find it.**
+**If ytmaxxing taught your AI something, give it a star so more people find it.**
 
 <a href="https://star-history.com/#Oal36ar/ytmaxxing&Date"><img src="https://api.star-history.com/svg?repos=Oal36ar/ytmaxxing&type=Date" alt="Star history" width="560"></a>
 
