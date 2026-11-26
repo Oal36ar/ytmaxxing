@@ -11,6 +11,8 @@ import functools
 import json
 from pathlib import Path
 
+from pydantic import BaseModel, Field
+
 from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 from mcp.types import ToolAnnotations
@@ -19,13 +21,17 @@ from . import __version__
 from .core import ensure_video, header
 from .library import OUTPUT_MODES, Library
 from .modes import MODES, build_guide
-from .youtube import YtmaxxingError, list_videos, video_id
+from .research import Project, list_projects
+from .verify import check_output, load_paragraphs
+from .youtube import YtmaxxingError, list_videos, timestamp, video_id
 
 INSTRUCTIONS = """ytmaxxing turns YouTube videos into skills, knowledge and outcomes the user keeps.
 When the user shares a YouTube link (or a playlist or channel), call `maxx` with the mode that fits
 what they want (default `max`), then follow the guide it returns: read every transcript part with
-`get_video`, write the output, and save it with `save_output`. Before answering questions about
-videos the user has watched or saved, check `search_library` first."""
+`get_video`, write the output, and save it with `save_output` (it checks the citations; fix what it
+flags). When the user wants a question answered from many videos (a channel, playlist, search or list),
+use `research_start` and follow the guide it returns. Before answering questions about videos the user
+has watched or saved, check `search_library` first."""
 
 mcp = MCPServer("ytmaxxing", title="ytmaxxing", version=__version__, instructions=INSTRUCTIONS,
                 website_url="https://github.com/Oal36ar/ytmaxxing")
@@ -33,6 +39,7 @@ mcp = MCPServer("ytmaxxing", title="ytmaxxing", version=__version__, instruction
 READ = ToolAnnotations(read_only_hint=True, open_world_hint=True)
 LOCAL_READ = ToolAnnotations(read_only_hint=True, open_world_hint=False)
 WRITE = ToolAnnotations(read_only_hint=False, destructive_hint=False, open_world_hint=False)
+FETCH_WRITE = ToolAnnotations(read_only_hint=False, destructive_hint=False, open_world_hint=True)
 
 
 def _lib() -> Library:
@@ -103,8 +110,19 @@ def save_output(url: str, mode: str, markdown: str, skill_name: str = "", target
         skill_name: For skills: the skill's name (taken from its frontmatter if left empty).
         target_name: For check: a short name for what was compared, used in the filename.
     """
-    path = _lib().save_output(video_id(url), mode, markdown, name=skill_name or target_name)
-    return f"Saved to {path}"
+    lib = _lib()
+    vid = video_id(url)
+    path = lib.save_output(vid, mode, markdown, name=skill_name or target_name)
+    return f"Saved to {path}\n{_check_citations(lib, vid, markdown)}"
+
+
+def _check_citations(lib: Library, vid: str, markdown: str) -> str:
+    """Check every timestamp link (and quotes next to them) in a saved output against the transcript."""
+    d = lib.find_video_dir(vid)
+    if not d or not (d / "transcript.md").exists():
+        return "Citation check skipped: no saved transcript."
+    meta = lib.load_meta(vid) or {}
+    return check_output(markdown, vid, load_paragraphs(d / "transcript.md"), meta.get("duration")).summary()
 
 
 @tool(READ)
@@ -187,6 +205,167 @@ def install_skill(skill_name: str, where: str = "user", project_dir: str = "") -
     return f"Installed: {path}. The agent will pick it up in its next session."
 
 
+# ---------------------------------------------------------------- research: many videos, one report
+
+class Claim(BaseModel):
+    q: str = Field(description="Sub-question ID this claim answers, e.g. Q2")
+    claim: str = Field(description="The point in your own words: one short, specific sentence")
+    speaker: str = Field("", description="Who says it (name, or 'host'/'guest'); empty if unclear")
+    type: str = Field(description="shown, measured, belief or story")
+    stance: str = Field(description="2-5 plain words naming the position, worded so other videos' claims line up")
+    t: int | str = Field(description="Time of the transcript paragraph where it's said: seconds or mm:ss")
+    quote: str = Field("", description="3-25 words copied exactly from that paragraph (caption typos included)")
+
+
+class Side(BaseModel):
+    label: str = Field(description="The position, in a few words")
+    claims: list[str] = Field(description="Claim IDs (like V03.4) that hold this position")
+
+
+class Position(BaseModel):
+    q: str = Field(description="Sub-question ID, e.g. Q1")
+    kind: str = Field(description="agree (one position held in 2+ videos) or contradict (2+ sides)")
+    label: str = Field("", description="For agree: the shared position")
+    claims: list[str] = Field(default_factory=list, description="For agree: claim IDs holding it")
+    sides: list[Side] = Field(default_factory=list, description="For contradict: each side with its claim IDs")
+
+
+def _project(project: str) -> Project:
+    return Project(_lib(), project.strip())
+
+
+@tool(READ)
+def search_videos(query: str, limit: int = 20) -> str:
+    """Search YouTube for videos (no API key). Use it to build a source list for research.
+
+    Args:
+        query: Search words, as you'd type them into YouTube.
+        limit: Maximum number of results (up to 50).
+    """
+    from . import youtube
+
+    hits = youtube.search_videos(query, limit)
+    if not hits:
+        return "No videos found."
+    return "\n".join(f"{i}. {h['title']} · {h.get('channel') or '?'} · "
+                     f"{timestamp(h['duration']) if h.get('duration') else '?'} · {h['url']}"
+                     for i, h in enumerate(hits, 1))
+
+
+@tool(FETCH_WRITE)
+def research_start(question: str, sub_questions: list[str], sources: list[str], limit: int = 20,
+                   allow_whisper: bool = False) -> str:
+    """Start a research project: one question answered from many videos, with every citation checked.
+
+    Returns the project ID, the video list and the guide to follow. Confirm the video list with the user
+    before reading more than 20 videos.
+
+    Args:
+        question: The user's research question, as a full sentence.
+        sub_questions: 3 to 7 sub-questions that break the question down; every video is read against them.
+        sources: Any mix of video links, playlist or channel links, and "search:<words>" for a YouTube search.
+        limit: Most videos to take from the sources (up to 50).
+        allow_whisper: Transcribe videos without captions locally (slow; needs the whisper extra).
+    """
+    proj, notes = Project.create(_lib(), question, sub_questions, sources, limit, allow_whisper)
+    return "\n\n".join([f"Research project `{proj.slug}` created with {len(proj.sources)} video(s).",
+                         " ".join(notes), proj.status(), "Next: confirm the list with the user if needed, then "
+                         "call research_fetch until all sources are fetched.", proj.guide()]).replace("\n\n\n", "\n\n")
+
+
+@tool(FETCH_WRITE)
+def research_edit(project: str, drop: list[str] | None = None, add: list[str] | None = None) -> str:
+    """Drop videos from a research project (by ID, like V04) or add more sources.
+
+    Args:
+        project: Project ID from research_start.
+        drop: Video IDs to remove, e.g. ["V04", "V11"].
+        add: More sources: video links, playlist or channel links, or "search:<words>".
+    """
+    proj = _project(project)
+    return proj.edit(drop or [], add or []) + "\n\n" + proj.status()
+
+
+@tool(FETCH_WRITE)
+def research_fetch(project: str, batch: int = 5) -> str:
+    """Fetch the next transcripts for a research project, paced so YouTube doesn't block. Call until done.
+
+    Args:
+        project: Project ID from research_start.
+        batch: How many videos to fetch in this call (1-10).
+    """
+    return _project(project).fetch(batch)
+
+
+@tool(LOCAL_READ)
+def research_status(project: str = "") -> str:
+    """Show a research project's videos and what's been read, skipped or is still queued.
+
+    Args:
+        project: Project ID. Leave empty to list all research projects.
+    """
+    if not project.strip():
+        projects = list_projects(_lib())
+        if not projects:
+            return "No research projects yet. Start one with research_start."
+        return "\n".join(f"- {p['slug']}: {p['question']} ({p['read']} of {p['videos']} read"
+                         f"{', report saved' if p['report'] else ''})" for p in projects)
+    return _project(project).status()
+
+
+@tool(LOCAL_READ)
+def research_brief(project: str, video: str) -> str:
+    """The instructions for reading one video in a research project. Hand this text to a subagent as-is.
+
+    Args:
+        project: Project ID.
+        video: Video ID in the project, e.g. V07.
+    """
+    return _project(project).brief(video)
+
+
+@tool(WRITE)
+def save_claims(project: str, video: str, claims: list[Claim], replace: bool = False,
+                nothing_relevant: bool = False) -> str:
+    """Save the claims from one video. Each is checked against the transcript; rejected ones come back with reasons.
+
+    Args:
+        project: Project ID.
+        video: Video ID in the project, e.g. V07.
+        claims: The claims from this video.
+        replace: Replace this video's earlier claims instead of adding to them.
+        nothing_relevant: Set true, with no claims, if the whole video was read and says nothing on the question.
+    """
+    return _project(project).save_claims(video, [c.model_dump() for c in claims], replace, nothing_relevant)
+
+
+@tool(LOCAL_READ)
+def research_claims(project: str, q: str = "", offset: int = 0) -> str:
+    """All checked claims in a research project, one line each, for finding agreements and contradictions.
+
+    Args:
+        project: Project ID.
+        q: Only this sub-question (e.g. Q2). Leave empty for all.
+        offset: Start from this row, for long lists.
+    """
+    return _project(project).claims_text(q, offset)
+
+
+@tool(WRITE)
+def save_report(project: str, answer: str, positions: list[Position], notes: str = "", gaps: str = "") -> str:
+    """Save the research report. ytmaxxing checks every claim ID, counts the videos per position,
+    turns IDs into timestamp links and adds the coverage line.
+
+    Args:
+        project: Project ID.
+        answer: One or two paragraphs answering the question. Cite claim IDs in braces, like {V03.4}.
+        positions: Agreements and contradictions, built from claim IDs.
+        notes: Evidence quality: shown or measured versus belief, conflicts of interest, dated videos.
+        gaps: What no video answered well.
+    """
+    return _project(project).save_report(answer, [p.model_dump() for p in positions], notes, gaps)
+
+
 def _register_prompts() -> None:
     for key, info in MODES.items():
         def make(mode: str):
@@ -196,6 +375,14 @@ def _register_prompts() -> None:
                         f"Call maxx(url, mode='{mode}', goal, target) and follow the guide it returns.")
             return prompt
         mcp.prompt(name=key, description=info['what'])(make(key))
+
+    def research_prompt(question: str, sources: str = "") -> str:
+        where = f" Use these sources: {sources}." if sources else " Suggest sources (a YouTube search or channel) first."
+        return (f"Use ytmaxxing research to answer: {question}.{where} Call research_start and follow the guide "
+                "it returns: every video read in full, every citation checked, one report.")
+
+    mcp.prompt(name="research", description="One question, many videos: a checked report of where they agree "
+               "and contradict each other.")(research_prompt)
 
 
 _register_prompts()

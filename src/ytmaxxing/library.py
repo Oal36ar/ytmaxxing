@@ -7,6 +7,7 @@
         meta.json
         summary.md  knowledge.md  learn.md  outcomes.md  check-<target>.md
       skills/<skill-name>/SKILL.md      skills extracted from videos, ready to install
+      research/<question>/              many videos, one checked report (see research.py)
 
 Change the location with the YTMAXXING_HOME environment variable.
 """
@@ -195,6 +196,15 @@ class Library:
         skills = self.skill_names()
         if skills:
             rows += ["", "## Skills", ""] + [f"- [{s}](skills/{s}/SKILL.md)" for s in skills]
+        from .research import list_projects
+
+        projects = list_projects(self)
+        if projects:
+            rows += ["", "## Research", ""]
+            for p in projects:
+                target = "report.md" if p["report"] else "brief.md"
+                rows.append(f"- [{p['question']}](research/{p['slug']}/{target}) · {p['read']} of {p['videos']} "
+                            f"videos read · {p['created']}{'' if p['report'] else ' · no report yet'}")
         (self.root / "index.md").write_text("\n".join(rows) + "\n", encoding="utf-8")
 
     def search(self, query: str, limit: int = 15) -> list[dict]:
@@ -203,7 +213,7 @@ class Library:
             return []
         hits = []
         for p in self.root.rglob("*.md"):
-            if p.name == "index.md":
+            if p.name in ("index.md", "brief.md"):
                 continue
             for i, line in enumerate(p.read_text(encoding="utf-8").splitlines(), 1):
                 low = line.lower()

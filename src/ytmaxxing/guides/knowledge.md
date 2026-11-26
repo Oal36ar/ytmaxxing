@@ -18,9 +18,9 @@ tags: [<5–10 lowercase topic tags>]
 > <One sentence: the core idea of the video.>
 
 ## Key claims
-| Claim | Type | Moment |
-|---|---|---|
-| <the claim in your words> | shown / measured / belief / story | [mm:ss](link) |
+| Claim | Type | Quote | Moment |
+|---|---|---|---|
+| <the claim in your words> | shown / measured / belief / story | "<3–15 words copied exactly from the transcript at that moment>" | [mm:ss](link) |
 
 ## Frameworks and mental models
 <Each named or implied framework: what it is, how it works, when to use it, where it's explained.>
@@ -39,3 +39,5 @@ tags: [<5–10 lowercase topic tags>]
 ```
 
 Prefer more rows over longer rows. Skip a section only if the video truly has nothing for it.
+
+The Quote column lets anyone confirm the claim in seconds. Copy the words exactly as the transcript has them, caption typos and misspelt names included, and use the time of the paragraph they're in. ytmaxxing checks each quote against that moment when you save.

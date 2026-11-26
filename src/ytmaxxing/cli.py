@@ -35,6 +35,42 @@ def cmd_prompt(a) -> str:
     return (f"{guide}\n\n---\n\n{header(meta, 1, 1)}\n\n{transcript}\n")
 
 
+def cmd_verify(a) -> int:
+    from pathlib import Path
+
+    from .verify import check_output, load_paragraphs
+    from .youtube import video_id
+
+    lib = Library()
+    meta, _ = ensure_video(lib, a.url)
+    report = check_output(Path(a.file).expanduser().read_text(encoding="utf-8"), meta["id"],
+                          load_paragraphs(lib.find_video_dir(video_id(a.url)) / "transcript.md"), meta.get("duration"))
+    print(report.summary())
+    return 0 if not report.problems else 2
+
+
+def cmd_research(a) -> int:
+    from .research import Project, list_projects
+
+    lib = Library()
+    if a.action == "list" or not a.project:
+        projects = list_projects(lib)
+        if not projects:
+            print("No research projects yet. Ask your AI to start one (research_start).")
+        for p in projects:
+            print(f"{p['slug']}  {p['read']}/{p['videos']} read{'  report' if p['report'] else ''}  {p['question']}")
+        return 0
+    proj = Project(lib, a.project)
+    if a.action == "status":
+        print(proj.status())
+        return 0
+    while True:  # fetch everything queued, pacing as the server does
+        msg = proj.fetch(batch=5)
+        print(msg, flush=True)
+        if "still queued" not in msg:
+            return 0 if "blocking" not in msg else 1
+
+
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="ytmaxxing", description=BANNER)
     p.add_argument("--version", action="version", version=f"ytmaxxing {__version__}")
@@ -63,6 +99,14 @@ def main(argv: list[str] | None = None) -> int:
     s = sub.add_parser("search", help="search your library")
     s.add_argument("query", nargs="+")
     sub.add_parser("modes", help="show the ways to max a video")
+
+    v = sub.add_parser("verify", help="check the timestamp links and quotes in a saved output against the transcript")
+    v.add_argument("url")
+    v.add_argument("file", help="a markdown file made from that video")
+
+    r = sub.add_parser("research", help="research projects: list them, see one, or fetch all its transcripts")
+    r.add_argument("action", choices=["list", "status", "fetch"])
+    r.add_argument("project", nargs="?", default="")
 
     a = p.parse_args(argv)
     if a.cmd is None:
@@ -104,6 +148,11 @@ def main(argv: list[str] | None = None) -> int:
         elif a.cmd == "modes":
             for key, m in MODES.items():
                 print(f"{key:<10} {m['what']}")
+            print(f"{'research':<10} One question, many videos: a checked report of where they agree and disagree.")
+        elif a.cmd == "verify":
+            return cmd_verify(a)
+        elif a.cmd == "research":
+            return cmd_research(a)
     except YtmaxxingError as e:
         print(f"error: {e}", file=sys.stderr)
         return 1

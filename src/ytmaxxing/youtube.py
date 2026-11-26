@@ -230,6 +230,20 @@ def transcribe_with_whisper(vid: str) -> Transcript:
     return Transcript(lines, meta.language, "whisper")
 
 
+def classify_error(message: str) -> str:
+    """Sort a fetch failure: "blocked" (rate limit or IP block, worth retrying later), "no-captions",
+    "unavailable" (private, removed, age-gated) or "error"."""
+    m = message.lower()
+    if any(k in m for k in ("block", "429", "too many requests", "not a bot")):
+        return "blocked"
+    if any(k in m for k in ("no captions", "transcriptsdisabled", "notranscriptfound", "subtitles are disabled")):
+        return "no-captions"
+    if any(k in m for k in ("unavailable", "private video", "removed", "age-restricted", "age restricted",
+                            "agerestricted", "members-only", "members only")):
+        return "unavailable"
+    return "error"
+
+
 def fetch_transcript(vid: str, languages: list[str] | None = None, allow_whisper: bool = True) -> Transcript:
     try:
         return fetch_captions(vid, languages)
@@ -323,4 +337,27 @@ def list_videos(url: str, limit: int = 25) -> list[dict]:
                         "url": watch_url(vid)})
         if len(out) >= limit:
             break
+    return out
+
+
+def search_videos(query: str, limit: int = 20) -> list[dict]:
+    """Search YouTube (via yt-dlp's ytsearch, no API key). Returns id, title, channel, duration, url."""
+    import yt_dlp
+
+    query = " ".join(query.split())
+    if not query:
+        raise YtmaxxingError("Give some words to search for.")
+    limit = max(1, min(int(limit), 50))
+    opts = _ydl_opts(extract_flat="in_playlist", noplaylist=False)
+    try:
+        with yt_dlp.YoutubeDL(opts) as ydl:
+            info = ydl.extract_info(f"ytsearch{limit}:{query}", download=False)
+    except Exception as e:  # noqa: BLE001
+        raise YtmaxxingError(f"YouTube search failed: {str(e).splitlines()[0] if str(e) else type(e).__name__}") from e
+    out = []
+    for e in info.get("entries") or []:
+        vid = (e or {}).get("id")
+        if vid and ID_RE.match(vid):
+            out.append({"id": vid, "title": e.get("title") or "", "duration": e.get("duration"),
+                        "channel": e.get("channel") or e.get("uploader") or "", "url": watch_url(vid)})
     return out

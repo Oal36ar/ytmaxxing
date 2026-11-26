@@ -25,7 +25,7 @@ description: <What the skill does AND when to use it, in one or two sentences. T
 <Inputs, accounts, tools and versions required. What the agent should ask the user if missing.>
 
 ## Steps
-1. <Imperative step the agent can carry out.> ([mm:ss](link))
+1. <Imperative step the agent can carry out.> ([mm:ss](link)) <If the exact wording matters, add a short quote on the same line, copied exactly from the transcript.>
 2. …
 
 ## Check your work
