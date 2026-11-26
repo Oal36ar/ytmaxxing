@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "ytmaxxing": {
+      "command": "uvx",
+      "args": ["--from", "git+https://github.com/Oal36ar/ytmaxxing", "ytmaxxing", "serve"]
+    }
+  }
+}

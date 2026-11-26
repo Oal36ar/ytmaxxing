@@ -1,0 +1,11 @@
+{
+  "name": "ytmaxxing",
+  "owner": { "name": "Omar Al Attar" },
+  "plugins": [
+    {
+      "name": "ytmaxxing",
+      "source": "./",
+      "description": "Turn long YouTube videos into skills, knowledge and outcomes your AI agents can use."
+    }
+  ]
+}

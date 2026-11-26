@@ -1,0 +1,43 @@
+[project]
+name = "ytmaxxing"
+version = "0.1.0"
+description = "Turn long YouTube videos into skills, knowledge and outcomes your AI agents can use. MCP server + CLI."
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+requires-python = ">=3.10"
+authors = [{ name = "Omar Al Attar" }]
+keywords = ["mcp", "youtube", "transcript", "claude", "agent-skills", "knowledge-base", "ai-agents", "llm"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: End Users/Desktop",
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = [
+    "mcp>=2.3,<3",
+    "youtube-transcript-api>=1.2.5",
+    "yt-dlp>=2025.1.1",
+    "httpx>=0.27",
+]
+
+[project.optional-dependencies]
+whisper = ["faster-whisper>=1.0"]
+
+[project.scripts]
+ytmaxxing = "ytmaxxing.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/Oal36ar/ytmaxxing"
+Issues = "https://github.com/Oal36ar/ytmaxxing/issues"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/ytmaxxing"]
+
+[dependency-groups]
+dev = ["pytest>=8"]
