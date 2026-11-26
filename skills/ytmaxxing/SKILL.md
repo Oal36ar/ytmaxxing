@@ -1,6 +1,6 @@
 ---
 name: ytmaxxing
-description: Turn YouTube videos, playlists and channels into skills, knowledge, summaries, study guides, outcomes and upgrade checks using the ytmaxxing MCP tools. Use whenever the user shares a YouTube link, asks to learn from, summarize, take notes on, extract a skill from, or apply a video to their project or goal, or asks about videos they saved before.
+description: Turn YouTube videos, playlists and channels into skills, knowledge, summaries, study guides, outcomes, upgrade checks and checked multi-video research reports using the ytmaxxing MCP tools. Use whenever the user shares a YouTube link, asks to learn from, summarize, take notes on, extract a skill from, or apply a video to their project or goal, asks a research question across many videos, or asks about videos they saved before.
 ---
 
 # ytmaxxing
@@ -31,7 +31,15 @@ If it's unclear, use `max`, or ask one short question.
 
 ## Playlists and channels
 
-Call `list_playlist(url, limit)` first, show the user the list, and agree which videos to process before starting. Process them one at a time. For several videos on the same topic, offer a final merged knowledge note or skill that says where the creators agree and disagree.
+Call `list_playlist(url, limit)` first, show the user the list, and agree which videos to process before starting. Process them one at a time.
+
+## One question across many videos
+
+When the user wants a question answered from several videos ("what do these creators say about…", "research X across this channel", "where do they disagree"), use research mode: call `research_start(question, sub_questions, sources)` with 3–7 sub-questions and sources (links, a playlist or channel, or `search:<words>`), then follow the guide it returns. Confirm the video list with the user before reading more than 20. Where you can start subagents, give each video to its own subagent with the text from `research_brief`.
+
+## Checked citations
+
+`save_output` and `save_claims` check timestamps and quotes against the transcript. When they list problems, fix the time or copy the transcript's exact words, and save again. Never keep a quote the check couldn't find unless it's clearly your own wording.
 
 ## Questions about saved videos
 

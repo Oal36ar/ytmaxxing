@@ -16,6 +16,7 @@
 <p>
   <a href="#quick-start">Quick start</a> ·
   <a href="#seven-ways-to-max-a-video">Modes</a> ·
+  <a href="#research-one-question-many-videos">Research</a> ·
   <a href="#real-example-a-10-minute-tutorial-becomes-a-skill">Example</a> ·
   <a href="#how-it-works">How it works</a> ·
   <a href="#faq">FAQ</a>
@@ -29,11 +30,14 @@ You watch a two-hour video, nod along, and by Friday it's gone. Your AI never sa
 
 **ytmaxxing** fixes both. Give it any YouTube link and your AI turns the video into things you keep: a **skill** your agent can follow, **cited notes** it can search months later, a **plan** for your own goal, or **upgrades** for a project you're already working on. Everything is plain markdown on your machine, with every claim linked to the exact second in the video.
 
+Got a bigger question? Point it at up to 50 videos, a channel, a playlist or a YouTube search, and get one **research report**: where the speakers agree, where they contradict each other and who said what. ytmaxxing checks every citation against the transcript in code, so a made-up quote or moment can't reach the report.
+
 It runs inside the AI you already use (Claude, Cursor, or any [MCP](https://modelcontextprotocol.io) client). There's no API key and nothing to pay for.
 
 ## Contents
 
 - [Seven ways to max a video](#seven-ways-to-max-a-video)
+- [Research: one question, many videos](#research-one-question-many-videos)
 - [Real example: a 10-minute tutorial becomes a skill](#real-example-a-10-minute-tutorial-becomes-a-skill)
 - [Quick start](#quick-start)
 - [What to say](#what-to-say)
@@ -61,6 +65,26 @@ Different videos are worth different things. Pick what you need, or let `max` do
 
 > [!NOTE]
 > ytmaxxing is honest about skills. If a video doesn't teach a repeatable procedure (most interviews and opinion pieces don't), it says so and makes knowledge instead of inventing steps.
+
+Every output is checked when it's saved: each timestamp link must land inside the video, and quoted words on the same line must be in the transcript at that moment. Your AI gets a list of what didn't match and fixes it.
+
+## Research: one question, many videos
+
+Summarising one video is easy. Answering a question from twenty is where an AI usually skims, blends and invents. `research` is built to stop that:
+
+1. **Your AI frames the question** as a few sub-questions and builds the source list: links, a playlist, a channel, or a YouTube search. You confirm the list.
+2. **ytmaxxing fetches the transcripts slowly**, so YouTube doesn't block you, and keeps a ledger of what it couldn't get and why.
+3. **Every video is read in full**, one subagent per video where your AI supports it (Claude Code does). Each one sends back claims with a short quote copied from the transcript.
+4. **ytmaxxing checks every claim in code.** The quote has to be in the transcript at the cited moment; close matches pass, so auto-caption misspellings don't count against a claim. Anything else is sent back to be fixed. Each claim that passes gets an ID like `V07.12`.
+5. **Your AI groups the claims into positions**, and ytmaxxing writes the report: it turns IDs into timestamp links, counts how many videos hold each position, and adds the coverage line.
+
+The report has the answer, a coverage line ("Read 14 of 15 videos… Not read: V09 (no captions)"), where they agree, where they contradict each other (every side cited in its own video), a who-said-what grid, evidence notes, gaps and the source list. Counts come from code, not from the model.
+
+**A real check**, on a two-hour Diary of a CEO episode: two exact quotes passed; a paraphrase written as a quote ("we'll pause when AI can automate AI research") and a real quote cited at the wrong moment (55:00 instead of 51:37) were both rejected, with the reason sent back to the agent.
+
+**Honest limits.** A checked quote proves those words were said at that moment. It doesn't prove the paraphrase next to it is fair, so the report keeps the quote beside it. Captions don't record who is speaking, so speakers come from context. Videos without captions are skipped unless you turn on local transcription for the project.
+
+Try: *"Research how soon AI will match top human experts. Use a YouTube search for long interviews from 2025–2026, 15 videos, and show me where they disagree."*
 
 ## Real example: a 10-minute tutorial becomes a skill
 
@@ -164,6 +188,7 @@ Once it's installed, just talk to your AI:
 - *"Make me a study guide for this lecture and quiz me."*
 - *"List the last 10 videos on @channel and make knowledge notes for the ones about pricing."*
 - *"What did the videos I saved say about onboarding?"*
+- *"Research this question across the last 20 videos on @channel: where do they agree and disagree?"*
 
 Every mode is also an MCP prompt, so in Claude Code you can type `/` and search for `ytmaxxing` to pick one.
 
@@ -189,10 +214,15 @@ ytmaxxing does the parts a model is bad at: fetching captions reliably, splittin
 |---|---|
 | `maxx` | Fetches the video and returns the guide for the chosen mode |
 | `get_video` | Transcript with chapters and timestamp links, in parts for long videos |
-| `save_output` | Files the result in your library |
+| `save_output` | Files the result in your library and checks its citations against the transcript |
 | `list_playlist` | Lists videos in a playlist or channel |
 | `search_library` · `list_library` · `read_output` | Find what you've already maxxed |
 | `install_skill` | Copies a skill into `~/.claude/skills` or a project (only when you say so) |
+| `search_videos` | Searches YouTube, no API key |
+| `research_start` · `research_edit` | Starts a research project from links, playlists, channels or a search; adds or drops videos |
+| `research_fetch` · `research_status` | Fetches transcripts with pacing; shows what's read, skipped or queued |
+| `research_brief` · `save_claims` | Instructions for reading one video; stores its claims after checking each one |
+| `research_claims` · `save_report` | All checked claims; renders the report with links, counts and coverage |
 
 ## Your library
 
@@ -206,9 +236,16 @@ Everything lands in `~/ytmaxxing` as plain markdown, so any agent, editor or not
 │       ├── transcript.md                      ← chapters + clickable timestamps
 │       ├── summary.md  knowledge.md  learn.md  outcomes.md
 │       └── check-my-deploy-skill.md
-└── skills/
-    └── rebase-feature-branch/SKILL.md         ← ready to install
+├── skills/
+│   └── rebase-feature-branch/SKILL.md         ← ready to install
+└── research/
+    └── how-soon-will-ai-match-human-experts/
+        ├── brief.md  sources.json             ← the question and the video ledger
+        ├── cards/V01.md …                     ← checked claims, one file per video
+        └── report.md                          ← the report
 ```
+
+From a terminal: `ytmaxxing research list`, `ytmaxxing research status <project>`, and `ytmaxxing research fetch <project>` to fetch a long list outside a chat. `ytmaxxing verify <url> <file.md>` checks any saved note's citations.
 
 Point an Obsidian vault at it, commit it to a repo, or add it to a ChatGPT project.
 
@@ -241,7 +278,12 @@ On a server or cloud machine, YouTube often blocks requests outright. Set `YTMAX
 - [x] Playlists and channels
 - [x] Local Whisper fallback
 - [ ] One-click Claude Desktop extension (`.mcpb`)
-- [ ] `merge`: several videos on one topic become one stronger skill, with disagreements marked
+- [x] `research`: one question across up to 50 videos, with every citation checked in code
+- [x] Citation check on every saved output
+- [ ] Research on one very long video or stream (split into segments)
+- [ ] `claim_check`: "does anything I've read contradict this?"
+- [ ] Re-run a research project and show what changed since last time
+- [ ] `merge`: research results turned into one stronger skill, with disagreements marked
 - [ ] Freshness check: flag skills whose tools have changed since the video was recorded
 - [ ] Skill self-test: the agent tries a new skill on a sample task and reports gaps
 - [ ] Podcasts and other video sites
