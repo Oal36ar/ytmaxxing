@@ -19,7 +19,7 @@ Call `research_fetch(project)` until it says all sources are fetched. It paces i
 
 For each fetched video ID, call `research_brief(project, video)` and follow what it returns: read every transcript part, then send the claims with `save_claims`.
 
-- **If you can start subagents** (for example Claude Code's Agent tool): start one per video, about five at a time, on a smaller and cheaper model. Give each one the full text `research_brief` returned for its video, and nothing else. Wait for all of them, then check `research_status`.
+- **If you can start subagents** (for example Claude Code's Agent tool): run about five at a time, on a smaller and cheaper model. Give each one video, or a few videos to read one after another, with the full text `research_brief` returned for each of its videos and nothing else. Wait for all of them, then check `research_status`: it shows how many claims were sent, accepted and rejected, and rejected claims are kept in `rejections.jsonl` for review.
 - **If you can't**, do it yourself, one video at a time. Progress is saved on disk, so a new session can carry on from `research_status`.
 
 Don't skim. A video counts as read only when every part has been read.
@@ -38,7 +38,7 @@ Don't invent a contradiction from a difference in emphasis, and don't merge posi
 Call `save_report(project, answer, positions, notes, gaps)`:
 
 - **answer:** one or two paragraphs that answer the question, say how strongly the videos support it and where they split. Cite with claim IDs in braces, like `{V03.4}` or `{V03.4, V07.1}`; ytmaxxing turns them into timestamp links.
-- **positions:** agreements as `{"q": "Q1", "kind": "agree", "label": "...", "claims": ["V01.2", "V05.1"]}` and contradictions as `{"q": "Q1", "kind": "contradict", "sides": [{"label": "...", "claims": [...]}, {"label": "...", "claims": [...]}]}`. Don't write counts; ytmaxxing counts the videos on each side.
+- **positions:** agreements as `{"q": "Q1", "kind": "agree", "label": "...", "claims": ["V01.2", "V05.1"]}` and contradictions as `{"q": "Q1", "kind": "contradict", "label": "what they split on, as a short question", "sides": [{"label": "...", "claims": [...]}, {"label": "...", "claims": [...]}]}`. Don't write counts; ytmaxxing counts the videos and speakers on each side, and flags a video that lands on more than one side.
 - **notes:** evidence quality: what was shown or measured versus believed, conflicts of interest, videos that may be out of date.
 - **gaps:** what no video answered well.
 

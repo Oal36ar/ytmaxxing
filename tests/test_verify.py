@@ -129,3 +129,35 @@ def test_long_transcript_check_is_fast():
     for _ in range(30):
         check(paras, 6000, "this sentence appears nowhere in the whole transcript at all")
     assert time.perf_counter() - t0 < 5
+
+
+# ---------------------------------------------------------------- fixes from the 2026-11-26 real run
+
+def test_close_match_that_changes_the_meaning_is_rejected(tmp_path):
+    """Run notes problem 2: "decade" -> "year" passed at 95%. Only a name may differ now."""
+    _, paras = _transcript(tmp_path)
+    for quote, why in [("superintelligence arrives probably by the end of the year", "a word differs"),
+                       ("That is his median around twenty twenty eight", "a number differs"),
+                       ("Some people say it's decades away and I do think that's right", "a negation differs")]:
+        c = check(paras, 40 if "superintelligence" in quote else 60 if "median" in quote else 100, quote)
+        assert c.status == "rejected" and "changes the meaning" in c.reason and why in c.reason, (quote, c)
+    assert check(paras, 10, "my guest is Daniel Kokotajlo who left OpenAI").status == "quote-close"
+    # dropping any real word is rejected; dropping an article is fine
+    assert check(paras, 100, "Some people say it's decades away and I don't think right").status == "rejected"
+    assert check(paras, 30, "He thinks superintelligence arrives by the end of the decade").status == "rejected"
+    assert check(paras, 30, "superintelligence arrives probably by end of the decade").status == "quote-close"
+
+
+def test_link_lands_near_the_quote_not_the_paragraph_start(tmp_path):
+    """Run notes problem 7: links pointed at the paragraph start, up to 45 s before the words."""
+    video = Video(id=VID, title="Long paragraph", channel="X", duration=120)
+    lines = [(float(s), f"filler sentence number {s} with several more ordinary words in it") for s in range(0, 41, 8)]
+    lines[-1] = (40.0, "and here is the important closing point about jobs")
+    lib = Library(tmp_path)
+    lib.save_transcript(video, Transcript([Line(s, t) for s, t in lines] + [(Line(60.0, "next paragraph"))],
+                                          "en", "captions"))
+    paras = parse_paragraphs((lib.find_video_dir(VID) / "transcript.md").read_text())
+    c = check(paras, 0, "the important closing point about jobs")
+    assert c.status == "quote" and c.t == 0
+    assert 10 <= c.at < 40  # later than the paragraph start, and never after the words (errs early)
+    assert check(paras, 0, "filler sentence number 0").at == 0

@@ -223,7 +223,7 @@ def test_report_counts_and_links_are_done_by_code(lib):
     msg = proj.save_report("Two of three speakers expect superhuman AI before 2030 {V01.1, V03.1}; "
                            "the lecturer disagrees V02.1.", POSITIONS,
                            notes="Only one measured number: V03.2.", gaps="Nobody gave a date range.")
-    assert "Read 3 of 3 videos" in msg and "1 agreement(s), 2 contradiction(s)" in msg
+    assert "Read 3 of 3 videos" in msg and "1 agreement, 2 contradictions" in msg
     md = (proj.dir / "report.md").read_text()
     assert "2 of 3 videos (V01, V03)" in md
     assert f"[Guest, 01:00](https://youtu.be/{A}?t=60)" in md
@@ -315,3 +315,178 @@ def test_cli_research_list_and_status(lib, monkeypatch, capsys):
     assert proj.slug in capsys.readouterr().out
     assert main(["research", "status", proj.slug]) == 0
     assert "V03  fetched" in capsys.readouterr().out
+
+
+# ---------------------------------------------------------------- fixes from the 2026-11-26 real run
+
+def test_rejections_are_logged_and_tallied(lib):
+    """Run notes problem 1: rejections weren't recorded, so the pass rate came from readers' reports."""
+    proj = _project(lib)
+    proj.fetch()
+    msg = proj.save_claims("V01", [
+        {"q": "Q1", "claim": "Superhuman AI before 2030", "speaker": "Guest", "type": "belief",
+         "stance": "before 2030", "t": 60, "quote": "probably by the end of the decade"},
+        {"q": "Q1", "claim": "Invented", "speaker": "Guest", "type": "belief", "stance": "x",
+         "t": 60, "quote": "robots will replace every judge"}])
+    assert "1 accepted, 1 rejected" in msg
+    proj.save_claims("V01", [{"q": "Q2", "claim": "Office jobs automated", "type": "belief", "stance": "x",
+                              "t": 130, "quote": "most office jobs will be automated"}])
+    tally = json.loads((proj.dir / "project.json").read_text())["tally"]
+    assert tally == {"sent": 3, "accepted": 2, "rejected": 1, "duplicates": 0}
+    assert "Claims sent to save_claims: 3 · accepted 2 · rejected 1" in proj.status()
+    assert proj.row("V01")["rejected"] == 1
+
+
+def test_rejected_claims_can_be_reviewed(lib):
+    """Run notes problem 12: with nothing kept, a wrongly rejected claim could never be reviewed."""
+    proj = _project(lib)
+    proj.fetch()
+    proj.save_claims("V02", [{"q": "Q1", "claim": "Decades away", "speaker": "Lecturer", "type": "belief",
+                              "stance": "decades", "t": 60, "quote": "human level AI is a century away"}])
+    rows = [json.loads(x) for x in (proj.dir / "rejections.jsonl").read_text().splitlines()]
+    assert len(rows) == 1 and rows[0]["video"] == "V02" and rows[0]["quote"] == "human level AI is a century away"
+    assert "changes the meaning" in rows[0]["reason"] or "not found" in rows[0]["reason"]
+
+
+def test_contradictions_get_titles(lib):
+    """Run notes problem 3: two contradictions under one sub-question ran into each other."""
+    proj = _project(lib)
+    _read_all(proj)
+    positions = [
+        {"q": "Q1", "kind": "contradict", "label": "When does AI match experts?", "sides": [
+            {"label": "Before 2030", "claims": ["V01.1", "V03.1"]}, {"label": "Decades", "claims": ["V02.1"]}]},
+        {"q": "Q1", "kind": "contradict", "sides": [
+            {"label": "Soon", "claims": ["V03.1"]}, {"label": "Later", "claims": ["V02.1"]}]}]
+    proj.save_report("Split V01.1 V02.1.", positions)
+    md = (proj.dir / "report.md").read_text()
+    assert "#### When does AI match experts?" in md and "#### Contradiction 2" in md
+    assert md.index("#### When does") < md.index("Side A: Before 2030") < md.index("#### Contradiction 2")
+
+
+def test_video_on_both_sides_is_flagged_and_speakers_counted(lib):
+    """Run notes problem 4: counts were by video, and a video could sit on both sides unnoticed."""
+    proj = _project(lib)
+    _read_all(proj)
+    proj.save_claims("V01", [{"q": "Q2", "claim": "Jobs will change, not vanish", "speaker": "Host",
+                              "type": "belief", "stance": "jobs change", "t": 0, "quote": "the future of work"}])
+    positions = [{"q": "Q2", "kind": "contradict", "label": "Mass automation?", "sides": [
+        {"label": "Yes", "claims": ["V01.2"]}, {"label": "No", "claims": ["V01.3", "V02.2"]}]}]
+    msg = proj.save_report("Split V01.2.", positions)
+    md = (proj.dir / "report.md").read_text()
+    assert "V01 is on more than one side through different speakers" in msg
+    assert "*Note: V01 is on more than one side" in md
+    assert "2 of 3 videos (V01, V02) · 2 speakers · 2 claims" in md
+    same = [{"q": "Q1", "kind": "contradict", "label": "x", "sides": [
+        {"label": "a", "claims": ["V01.1"]}, {"label": "b", "claims": ["V01.2", "V02.1"]}]}]
+    proj.data["sub_questions"]  # V01.1 (Q1) and V01.2 (Q2) are both the Guest
+    msg = proj.save_report("x V01.1.", same)
+    assert "V01 has the same speaker on more than one side" in msg
+
+
+def test_long_sides_keep_every_link(lib):
+    """Run notes problem 5: after 6 claims the rest were bare IDs with no link."""
+    proj = _project(lib)
+    _read_all(proj)
+    extra = [{"q": "Q1", "claim": f"Point {i}", "speaker": "Guest", "type": "belief", "stance": "soon",
+              "t": t} for i, t in enumerate([0, 60, 130, 0, 60], 1)]
+    proj.save_claims("V01", extra)
+    ids = ["V01.1", "V03.1"] + [f"V01.{i}" for i in range(3, 8)]
+    proj.save_report("Soon V01.1.", [{"q": "Q1", "kind": "agree", "label": "Soon", "claims": ids}])
+    md = (proj.dir / "report.md").read_text()
+    assert "- Also: V01.7 [Guest, 01:00](https://youtu.be/" in md
+    assert "more: V01" not in md
+
+
+def test_teaser_quote_moves_to_the_interview(lib):
+    """Run notes problem 6: two claims cited the 0:00 teaser clip instead of the interview."""
+    E = "EEEEEEEEEEE"
+    lines = [(0, "large language models are not going to get us to general intelligence"),
+             (20, "welcome to the show everyone"), (400, "so here is my view in full, large language "
+                                                        "models are not going to get us to general intelligence"),
+             (700, "and that is all")]
+    video = Video(id=E, title="Long interview", channel="Pod", upload_date="2026-01-01", duration=900)
+    lib.save_transcript(video, Transcript([Line(float(s), t) for s, t in lines], "en", "captions"))
+    proj = _project(lib, sources=(A, E))
+    proj.fetch()
+    proj.save_claims("V02", [
+        {"q": "Q1", "claim": "LLMs won't reach AGI", "speaker": "Guest", "type": "belief", "stance": "not LLMs",
+         "t": 0, "quote": "large language models are not going to get us"},
+        {"q": "Q2", "claim": "Welcome", "speaker": "Host", "type": "story", "stance": "x",
+         "t": 20, "quote": "welcome to the show everyone"}])
+    card = proj.load_card("V02")
+    assert card[0]["t"] == 400 and card[0]["cited_t"] == 0 and "flags" not in card[0]
+    assert "teaser clip" in card[1]["flags"][0]
+    # an intro-titled first chapter sets the window; the interview after it isn't flagged
+    from ytmaxxing.research import opening_end
+    assert opening_end({"chapters": [{"start": 0, "title": "Intro"}, {"start": 49, "title": "Jobs"}]}) == 49
+    assert opening_end({"chapters": [{"start": 0, "title": "AGI"}, {"start": 900, "title": "RL"}]}) == 60
+    assert opening_end({"chapters": [{"start": 0, "title": "Coming up"}, {"start": 400, "title": "x"}]}) == 180
+
+
+def test_number_not_said_at_the_moment_is_flagged(lib):
+    """Run notes problem 8: a paraphrase can bring in detail from another moment."""
+    proj = _project(lib)
+    proj.fetch()
+    msg = proj.save_claims("V03", [
+        {"q": "Q3", "claim": "Support tickets fell 60% after agents", "speaker": "Founder", "type": "measured",
+         "stance": "x", "t": 130, "quote": "support tickets fell forty percent"},
+        {"q": "Q3", "claim": "Support tickets fell 40% after agents in 2035", "speaker": "Founder",
+         "type": "measured", "stance": "y", "t": 130, "quote": "support tickets fell forty percent"}])
+    card = proj.load_card("V03")
+    assert card[0]["flags"] == ["60 isn't said at this moment"]
+    assert card[1]["flags"] == ["2035 isn't said at this moment"]  # 40% is said as "forty percent"
+    assert "V03.1: 60 isn't said" in msg
+    proj.save_claims("V01", [{"q": "Q1", "claim": "AI by 2030 (said in 2026), about 1,000 days", "speaker": "Guest",
+                              "type": "belief", "stance": "z", "t": 60, "quote": "probably by the end of the decade"}])
+    # 2030 is said as "twenty thirty"; 2026 is the upload year, so it's skipped; the comma stays out
+    assert proj.load_card("V01")[0]["flags"] == ["1,000 isn't said at this moment"]
+    proj.save_report("x V03.1.", [{"q": "Q3", "kind": "agree", "label": "x", "claims": ["V03.1", "V01.1"]}])
+    md = (proj.dir / "report.md").read_text()
+    assert "*Check: 60 isn't said at this moment.*" in md and "Flagged for a second look: 3 claims give a number" in md
+
+
+def test_guides_match_the_code(lib):
+    """Run notes problem 9: guide said one reader per video, no counts in replies, and 25 vs 30 words."""
+    from ytmaxxing.verify import MAX_QUOTE_WORDS, MIN_QUOTE_WORDS
+    proj = _project(lib)
+    proj.fetch()
+    brief, guide = proj.brief("V01"), proj.guide()
+    assert f"{MIN_QUOTE_WORDS}–{MAX_QUOTE_WORDS} words" in brief
+    assert "accepted and rejected in total" in brief
+    assert "a few videos to read one after another" in guide and "rejections.jsonl" in guide
+
+
+def test_counts_are_pluralised(lib):
+    """Run notes problem 10: the report said "1 close matches"."""
+    proj = _project(lib)
+    _read_all(proj)
+    proj.save_claims("V03", [{"q": "Q1", "claim": "Systems smarter than people", "speaker": "Founder",
+                              "type": "belief", "stance": "soon", "t": 60,
+                              "quote": "We will see Sistems smarter than people"}])
+    assert proj.load_card("V03")[-1]["check"] == "quote-close"
+    proj.save_report("x V01.1.", POSITIONS)
+    md = (proj.dir / "report.md").read_text()
+    assert "1 close match where" in md and "1 close matches" not in md and "6 exact quotes" in md
+
+
+def test_speaker_not_named_in_the_video_is_marked(lib):
+    """Run notes problem 11: speaker names come from context, with nothing to show which were inferred."""
+    proj = _project(lib)
+    proj.fetch()
+    proj.save_claims("V01", [
+        {"q": "Q1", "claim": "Before 2030", "speaker": "Erik Brynjolfsson", "type": "belief", "stance": "a",
+         "t": 60, "quote": "probably by the end of the decade"},
+        {"q": "Q2", "claim": "Office jobs", "speaker": "Guest", "type": "belief", "stance": "b",
+         "t": 130, "quote": "most office jobs will be automated"},
+        {"q": "Q2", "claim": "Future of work", "speaker": "Pod One host", "type": "belief", "stance": "c",
+         "t": 0, "quote": "the future of work"}])
+    card = proj.load_card("V01")
+    assert card[0].get("speaker_inferred") is True
+    assert "speaker_inferred" not in card[1] and "speaker_inferred" not in card[2]  # generic; channel name
+    proj.save_claims("V02", [{"q": "Q1", "claim": "Decades", "speaker": "Lecturer", "type": "belief",
+                              "stance": "d", "t": 60, "quote": "human level AI is decades away"}])
+    proj.save_report("x V01.1.", [{"q": "Q1", "kind": "contradict", "label": "When?", "sides": [
+        {"label": "Soon", "claims": ["V01.1"]}, {"label": "Later", "claims": ["V02.1"]}]}])
+    md = (proj.dir / "report.md").read_text()
+    assert "Erik Brynjolfsson (name inferred)" in md
+    assert "1 speaker name is not said in the video" in md

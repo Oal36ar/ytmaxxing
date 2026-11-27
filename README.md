@@ -74,15 +74,15 @@ Summarising one video is easy. Answering a question from twenty is where an AI u
 
 1. **Your AI frames the question** as a few sub-questions and builds the source list: links, a playlist, a channel, or a YouTube search. You confirm the list.
 2. **ytmaxxing fetches the transcripts slowly**, so YouTube doesn't block you, and keeps a ledger of what it couldn't get and why.
-3. **Every video is read in full**, one subagent per video where your AI supports it (Claude Code does). Each one sends back claims with a short quote copied from the transcript.
-4. **ytmaxxing checks every claim in code.** The quote has to be in the transcript at the cited moment; close matches pass, so auto-caption misspellings don't count against a claim. Anything else is sent back to be fixed. Each claim that passes gets an ID like `V07.12`.
-5. **Your AI groups the claims into positions**, and ytmaxxing writes the report: it turns IDs into timestamp links, counts how many videos hold each position, and adds the coverage line.
+3. **Every video is read in full**, by subagents where your AI supports them (Claude Code does), each taking one video or a few in turn. Each one sends back claims with a short quote copied from the transcript.
+4. **ytmaxxing checks every claim in code.** The quote has to be in the transcript at the cited moment. A name the captions misspell may differ; any other changed word, number or "not" is sent back to be fixed, and every rejection is logged so it can be reviewed. A quote from a teaser clip moves to where the same words come later in the interview. Each claim that passes gets an ID like `V07.12`, and is flagged if it gives a number that isn't said at that moment.
+5. **Your AI groups the claims into positions**, and ytmaxxing writes the report: it turns IDs into timestamp links that land near the quoted words, counts the videos and speakers behind each position, flags a video that sits on both sides of a split, and adds the coverage line.
 
 The report has the answer, a coverage line ("Read 14 of 15 videos… Not read: V09 (no captions)"), where they agree, where they contradict each other (every side cited in its own video), a who-said-what grid, evidence notes, gaps and the source list. Counts come from code, not from the model.
 
 **A real check**, on a two-hour Diary of a CEO episode: two exact quotes passed; a paraphrase written as a quote ("we'll pause when AI can automate AI research") and a real quote cited at the wrong moment (55:00 instead of 51:37) were both rejected, with the reason sent back to the agent.
 
-**Honest limits.** A checked quote proves those words were said at that moment. It doesn't prove the paraphrase next to it is fair, so the report keeps the quote beside it. Captions don't record who is speaking, so speakers come from context. Videos without captions are skipped unless you turn on local transcription for the project.
+**Honest limits.** A checked quote proves those words were said at that moment. It doesn't prove the paraphrase next to it is fair, so the report keeps the quote beside it. Captions don't record who is speaking, so speakers come from context; a name that isn't said in the video, its title or description is marked as inferred. Videos without captions are skipped unless you turn on local transcription for the project.
 
 Try: *"Research how soon AI will match top human experts. Use a YouTube search for long interviews from 2025–2026, 15 videos, and show me where they disagree."*
 

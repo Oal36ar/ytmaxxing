@@ -225,7 +225,8 @@ class Side(BaseModel):
 class Position(BaseModel):
     q: str = Field(description="Sub-question ID, e.g. Q1")
     kind: str = Field(description="agree (one position held in 2+ videos) or contradict (2+ sides)")
-    label: str = Field("", description="For agree: the shared position")
+    label: str = Field("", description="For agree: the shared position. For contradict: what they split on, "
+                                       "as a short title (e.g. 'Is AI already costing jobs?')")
     claims: list[str] = Field(default_factory=list, description="For agree: claim IDs holding it")
     sides: list[Side] = Field(default_factory=list, description="For contradict: each side with its claim IDs")
 

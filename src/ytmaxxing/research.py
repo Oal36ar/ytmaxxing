@@ -5,6 +5,7 @@
       project.json      question, sub-questions, settings
       sources.json      one row per video: V01, V02… with status and reason
       cards/V07.json    checked claims from one video (and V07.md, readable)
+      rejections.jsonl  every claim save_claims turned down, with the reason, so it can be reviewed
       report.src.json   what the agent sent to save_report
       report.md         the report: answer, coverage, agreement, contradiction, who said what
 
@@ -24,7 +25,7 @@ from datetime import datetime, timezone
 
 from .core import ensure_video
 from .library import Library, slugify
-from .verify import check, load_paragraphs, normalise, parse_time
+from .verify import NUMBER_WORDS, check, find_exact, load_paragraphs, normalise, parse_time
 from .youtube import (ID_RE, YtmaxxingError, classify_error, list_videos, search_videos, timestamp,
                       video_id, watch_url)
 
@@ -40,6 +41,18 @@ BLOCK_WAIT_SECONDS = 20.0  # wait once before retrying a blocked fetch
 STOP_AFTER_BLOCKS = 2  # consecutive blocked videos before a batch gives up
 _sleep = time.sleep  # replaced in tests
 
+COLD_OPEN_SECONDS = 60  # without an intro chapter, a quote this early may be from a teaser clip
+COLD_OPEN_MAX_SECONDS = 180  # an intro chapter longer than this isn't treated as a teaser
+COLD_OPEN_MIN_LENGTH = 600  # only videos at least this long are treated as having a teaser
+INTRO_TITLES = ("intro", "coming up", "teaser", "trailer", "preview", "cold open", "highlights", "opening",
+                "sneak peek")
+GENERIC_SPEAKERS = {"host", "guest", "interviewer", "narrator", "unknown", "moderator", "speaker", "audience",
+                    "caller", "clip", "panel", "panelist", "presenter", "voiceover", "co", "the", "a", "an",
+                    "founder", "cofounder", "ceo", "cto", "economist", "professor", "prof", "researcher",
+                    "lecturer", "author", "expert", "journalist", "scientist", "engineer", "investor", "analyst",
+                    "reporter", "student", "teacher", "executive", "official", "commentator", "other", "second",
+                    "first", "man", "woman", "person", "unnamed", "unidentified", "and"}
+
 STATUS_WORDS = {"queued": "queued", "fetched": "fetched", "extracted": "read", "skipped": "skipped",
                 "dropped": "dropped"}
 
@@ -53,6 +66,57 @@ def _hm(seconds: int | None) -> str:
         return "?"
     h, m = divmod(int(seconds) // 60, 60)
     return f"{h} h {m:02d} min" if h else f"{m} min"
+
+
+def _n(count: int, one: str, many: str = "") -> str:
+    return f"{count} {one if count == 1 else (many or one + 's')}"
+
+
+_SMALL = ("zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen "
+          "sixteen seventeen eighteen nineteen").split()
+_TENS = "twenty thirty forty fifty sixty seventy eighty ninety".split()
+
+
+def _say(n: int) -> list[str]:
+    """Ways a caption might spell a whole number: "16" -> sixteen; 2029 -> twenty twenty nine."""
+    def under_100(k: int) -> str:
+        return _SMALL[k] if k < 20 else _TENS[k // 10 - 2] + ("" if k % 10 == 0 else " " + _SMALL[k % 10])
+    out = []
+    if n < 100:
+        out.append(under_100(n))
+    elif 1900 <= n <= 2099:
+        hi, lo = divmod(n, 100)
+        out += [f"{under_100(hi)} {under_100(lo) if lo >= 10 else 'oh ' + _SMALL[lo]}",
+                f"two thousand {under_100(lo)}" if n >= 2000 else "",
+                f"two thousand and {under_100(lo)}" if n >= 2000 else "",
+                f"{under_100(hi)} hundred" if lo == 0 else ""]
+    return [x for x in out if x]
+
+
+def opening_end(meta: dict) -> int:
+    """Where a video's teaser could end: its first chapter if that's titled like an intro, else a minute."""
+    ch = meta.get("chapters") or []
+    if len(ch) >= 2 and any(w in (ch[0].get("title") or "").lower() for w in INTRO_TITLES):
+        return min(int(ch[1]["start"]), COLD_OPEN_MAX_SECONDS)
+    return COLD_OPEN_SECONDS
+
+
+def numbers_not_said(claim: str, window: str, skip_years: tuple[int, ...] = ()) -> list[str]:
+    """Numbers in a claim that aren't said in the cited part of the transcript (normalised text).
+
+    `skip_years` are left out: readers are asked to date a claim by when the video was published."""
+    said = " " + window + " "
+    missing = []
+    for raw in re.findall(r"\d+(?:,\d{3})*(?:\.\d+)?", claim):
+        digits = raw.replace(",", "")
+        if digits.isdigit() and int(digits) in skip_years:
+            continue
+        forms = [normalise(digits), normalise(raw)]
+        if "." not in digits:
+            forms += _say(int(digits))
+        if not any(f" {f} " in said for f in forms if f):
+            missing.append(raw)
+    return missing
 
 
 def _is_list_url(s: str) -> bool:
@@ -320,7 +384,13 @@ class Project:
                  f"{sum(1 for r in act if r['status'] == 'fetched')} · queued "
                  f"{sum(1 for r in act if r['status'] == 'queued')} · skipped "
                  f"{sum(1 for r in act if r['status'] == 'skipped')}",
-                 f"Claims checked so far: {sum(r.get('claims') or 0 for r in act)}", ""]
+                 f"Claims checked so far: {sum(r.get('claims') or 0 for r in act)}"]
+        t = self.data.get("tally")
+        if t:
+            lines.append(f"Claims sent to save_claims: {t['sent']} · accepted {t['accepted']} · rejected "
+                         f"{t['rejected']} · duplicates ignored {t['duplicates']}"
+                         + (f" (rejections are listed in {self.dir / 'rejections.jsonl'})" if t["rejected"] else ""))
+        lines.append("")
         for r in self.sources:
             reason = f" ({r['reason']})" if r.get("reason") else ""
             parts = f", {r['parts']} part(s)" if r.get("parts") else ""
@@ -366,11 +436,19 @@ class Project:
         if not d or not (d / "transcript.md").exists():
             raise YtmaxxingError(f"The transcript for {r['sid']} is missing. Call research_fetch again.")
         paras = load_paragraphs(d / "transcript.md")
+        meta = self.lib.load_meta(r["id"]) or {}
+        context = normalise(" ".join([meta.get("title") or "", meta.get("channel") or "",
+                                      meta.get("description") or "", " ".join(p.norm for p in paras)]))
+        duration = r.get("duration") or meta.get("duration")
+        opening = opening_end(meta)
+        published = str(meta.get("upload_date") or r.get("date") or "")[:4]
+        years = (int(published),) if published.isdigit() else ()
         existing = [] if replace else self.load_card(r["sid"])
         n = max((int(c["id"].split(".")[1]) for c in existing), default=0)
         seen = {(c["q"], c["t"], normalise(c["claim"])) for c in existing}
         qs = self.data["sub_questions"]
-        accepted, rejected, dupes = [], [], 0
+        accepted, rejected, dupes, flagged = [], [], 0, []
+        log = []
         for k, raw in enumerate(claims, 1):
             raw = raw if isinstance(raw, dict) else dict(raw)
             text = " ".join(str(raw.get("claim") or "").split())
@@ -389,35 +467,71 @@ class Project:
                 problem = f"type must be one of {', '.join(CLAIM_TYPES)}"
             elif not stance:
                 problem = "stance is empty (a few words naming the position this claim takes)"
+            quote = " ".join(str(raw.get("quote") or "").split()).strip("\"“”")
+            if not problem:
+                c = check(paras, raw.get("t", ""), quote, duration)
+                problem = "" if c.ok else c.reason
             if problem:
                 rejected.append(f"#{k} \"{label}\": {problem}")
+                log.append({"time": _now(), "video": r["sid"], "n": k, "q": q, "claim": text,
+                            "t": str(raw.get("t", "")), "quote": quote, "reason": problem})
                 continue
-            quote = " ".join(str(raw.get("quote") or "").split()).strip("\"“”")
-            c = check(paras, raw.get("t", ""), quote, r.get("duration"))
-            if not c.ok:
-                rejected.append(f"#{k} \"{label}\": {c.reason}")
-                continue
+            flags = []
+            if quote and c.t < opening and (duration or 0) >= COLD_OPEN_MIN_LENGTH:
+                later = find_exact(paras, quote, after=opening)
+                body = [p for p in paras if p.start >= opening]  # so the teaser can't match again
+                again = check(body, later, quote, duration) if later is not None else None
+                if again and again.ok:
+                    c = again
+                else:
+                    flags.append("said in the opening, which may be a teaser clip; the words aren't repeated later")
+            i = max(j for j, p in enumerate(paras) if p.start <= c.t)
+            window = " ".join(p.norm for p in paras[max(0, i - 1):i + 2])
+            missing = numbers_not_said(text, window, years)
+            if missing:
+                flags.append(f"{', '.join(missing)} isn't said at this moment")
+            speaker = " ".join(str(raw.get("speaker") or "").split()) or "unknown"
+            name = [w for w in normalise(speaker).split() if len(w) >= 3 and w not in GENERIC_SPEAKERS]
+            named = None if not name else f" {name[-1]} " in f" {context} "
             key = (q, c.t, normalise(text))
             if key in seen:
                 dupes += 1
                 continue
             seen.add(key)
             n += 1
-            accepted.append({"id": f"{r['sid']}.{n}", "q": q, "claim": text,
-                             "speaker": " ".join(str(raw.get("speaker") or "").split()) or "unknown",
-                             "type": ctype, "stance": stance[:80], "t": c.t,
-                             "cited_t": parse_time(raw.get("t")), "quote": quote, "check": c.status})
+            claim = {"id": f"{r['sid']}.{n}", "q": q, "claim": text, "speaker": speaker,
+                     "type": ctype, "stance": stance[:80], "t": c.t, "at": c.at if c.at is not None else c.t,
+                     "cited_t": parse_time(raw.get("t")), "quote": quote, "check": c.status}
+            if named is False:
+                claim["speaker_inferred"] = True
+            if flags:
+                claim["flags"] = flags
+                flagged.append(f"{claim['id']}: {'; '.join(flags)}")
+            accepted.append(claim)
         card = existing + accepted
         self._write_card(r, card)
+        if log:
+            with (self.dir / "rejections.jsonl").open("a", encoding="utf-8") as f:
+                f.writelines(json.dumps(x, ensure_ascii=False) + "\n" for x in log)
+        tally = self.data.setdefault("tally", {"sent": 0, "accepted": 0, "rejected": 0, "duplicates": 0})
+        tally["sent"] += len(claims)
+        tally["accepted"] += len(accepted)
+        tally["rejected"] += len(rejected)
+        tally["duplicates"] += dupes
+        r["rejected"] = (r.get("rejected") or 0) + len(rejected)
         r["status"], r["claims"] = ("extracted" if card else "fetched"), len(card)
         if card:
             r["reason"] = ""
         self.save()
         by = {s: sum(1 for c in accepted if c["check"] == s) for s in ("quote", "quote-close", "time")}
         msg = (f"Saved {len(accepted)} claim(s) for {r['sid']} ({by['quote']} exact quote, "
-               f"{by['quote-close']} close match, {by['time']} time only); {len(card)} in total.")
+               f"{by['quote-close']} close match, {by['time']} time only); {len(card)} in total. "
+               f"This call: {len(accepted)} accepted, {len(rejected)} rejected.")
         if dupes:
             msg += f" Ignored {dupes} duplicate(s)."
+        if flagged:
+            msg += ("\nSaved, but check these (send a corrected claim with replace=false if one is wrong):\n"
+                    + "\n".join(flagged))
         if rejected:
             msg += (f"\nRejected {len(rejected)}. Fix and send just these again (copy the words exactly from "
                     "the transcript, and use the time of the paragraph they're in):\n" + "\n".join(rejected))
@@ -432,8 +546,9 @@ class Project:
                  "|---|---|---|---|---|---|---|---|---|"]
         for c in card:
             cells = [c["id"], c["q"], c["speaker"], c["type"], c["stance"], c["claim"],
-                     f"“{c['quote']}”" if c["quote"] else "", f"[{timestamp(c['t'])}]({watch_url(r['id'], c['t'])})",
-                     c["check"]]
+                     f"“{c['quote']}”" if c["quote"] else "",
+                     f"[{timestamp(self._at(c))}]({watch_url(r['id'], self._at(c))})",
+                     c["check"] + "".join(f"; {x}" for x in c.get("flags", []))]
             lines.append("| " + " | ".join(str(x).replace("|", "/") for x in cells) + " |")
         (self.dir / "cards" / f"{r['sid']}.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
@@ -493,7 +608,8 @@ class Project:
                                   "single-video point in notes instead")
             elif len(clean) < 2:
                 errors.append(f"{where}: a contradiction needs at least 2 sides, each with claim IDs")
-            norm.append({"q": q, "kind": kind, "sides": clean})
+            norm.append({"q": q, "kind": kind, "label": " ".join(str(p.get("label") or "").split()),
+                         "sides": clean})
         if not norm and not errors:
             errors.append("Send at least one position (agree or contradict).")
         texts = {"answer": answer or "", "notes": notes or "", "gaps": gaps or ""}
@@ -514,11 +630,45 @@ class Project:
         path.write_text(md, encoding="utf-8")
         self.lib.update_index()
         agree = sum(1 for p in norm if p["kind"] == "agree")
-        return (f"Saved the report: {path}\n{self._coverage_line()} {agree} agreement(s), "
-                f"{len(norm) - agree} contradiction(s).")
+        msg = (f"Saved the report: {path}\n{self._coverage_line()} {_n(agree, 'agreement')}, "
+               f"{_n(len(norm) - agree, 'contradiction')}.")
+        overlaps = [w for p in norm if p["kind"] == "contradict" for w in self._overlaps(p["sides"], claims)]
+        if overlaps:
+            msg += "\nThe report flags these; check each is a real split:\n" + "\n".join(f"- {w}" for w in overlaps)
+        return msg
+
+    @staticmethod
+    def _at(c: dict) -> int:
+        return c.get("at", c["t"])
+
+    @staticmethod
+    def _who(c: dict) -> str:
+        return c["speaker"] + (" (name inferred)" if c.get("speaker_inferred") else "")
 
     def _cite(self, c: dict) -> str:
-        return f"[{c['speaker']}, {timestamp(c['t'])}]({watch_url(c['video'], c['t'])})"
+        return f"[{self._who(c)}, {timestamp(self._at(c))}]({watch_url(c['video'], self._at(c))})"
+
+    def _overlaps(self, sides: list[dict], claims: dict) -> list[str]:
+        """Videos that appear on more than one side of a contradiction, and whether it's one speaker."""
+        out = []
+        by_video: dict[str, list[tuple[int, str]]] = {}
+        for i, s in enumerate(sides):
+            for x in s["claims"]:
+                by_video.setdefault(claims[x]["sid"], []).append((i, claims[x]["speaker"]))
+        for sid, hits in sorted(by_video.items()):
+            if len({i for i, _ in hits}) < 2:
+                continue
+            per_side = {i: sorted({sp for j, sp in hits if j == i}) for i in sorted({i for i, _ in hits})}
+            names = [{normalise(sp) for sp in v} for v in per_side.values()]
+            shared = set.intersection(*names) if names else set()
+            where = "; ".join(f"Side {chr(65 + i)}: {', '.join(v)}" for i, v in per_side.items())
+            if shared:
+                out.append(f"{sid} has the same speaker on more than one side ({where}). Check the claims "
+                           "really disagree.")
+            else:
+                out.append(f"{sid} is on more than one side through different speakers ({where}), so its "
+                           "video counts once on each side.")
+        return out
 
     def _expand(self, text: str, claims: dict) -> str:
         def group(m):
@@ -539,6 +689,10 @@ class Project:
         if missed:
             line += " Not read: " + "; ".join(
                 f"{r['sid']} ({r['reason'] or STATUS_WORDS[r['status']]})" for r in missed) + "."
+        t = self.data.get("tally")
+        if t:
+            line += (f" Readers sent {_n(t['sent'], 'claim')} to the check: {t['accepted']} accepted, "
+                     f"{t['rejected']} rejected (a rejected claim can be fixed and sent again).")
         return line
 
     def _side_lines(self, ids: list[str], claims: dict, show: int = 6) -> list[str]:
@@ -546,20 +700,40 @@ class Project:
         for x in ids[:show]:
             c = claims[x]
             quote = f" “{c['quote']}”" if c["quote"] else ""
-            out.append(f"- **{c['sid']} · {c['speaker']}:** {c['claim']}{quote} "
-                       f"([{timestamp(c['t'])}]({watch_url(c['video'], c['t'])}))")
+            close = " (close match: captions spell a name differently)" if c["check"] == "quote-close" else ""
+            flags = "".join(f" *Check: {f}.*" for f in c.get("flags", []))
+            out.append(f"- **{c['sid']} · {self._who(c)}:** {c['claim']}{quote}{close} "
+                       f"([{timestamp(self._at(c))}]({watch_url(c['video'], self._at(c))})){flags}")
         if len(ids) > show:
-            out.append(f"- …and {len(ids) - show} more: {', '.join(ids[show:])}")
+            out.append("- Also: " + "; ".join(
+                f"{x} {self._cite(claims[x])}{' (check: ' + '; '.join(claims[x]['flags']) + ')' if claims[x].get('flags') else ''}"
+                for x in ids[show:]))
         return out
 
     def _side_head(self, label: str, ids: list[str], claims: dict, total_read: int) -> str:
         vids = sorted({claims[x]["sid"] for x in ids})
+        speakers = {(claims[x]["sid"], normalise(claims[x]["speaker"])) for x in ids}
         hard = sum(1 for x in ids if claims[x]["type"] in ("shown", "measured"))
         soft = len(ids) - hard
         evidence = ", ".join(s for s in (f"{hard} shown or measured" if hard else "",
                                          f"{soft} belief or story" if soft else "") if s)
         return (f"**{label or 'Position'}** · {len(vids)} of {total_read} videos ({', '.join(vids)}) · "
-                f"{len(ids)} claim(s): {evidence}")
+                f"{_n(len(speakers), 'speaker')} · {_n(len(ids), 'claim')}: {evidence}")
+
+    @staticmethod
+    def _flag_line(claims: dict) -> list[str]:
+        nums = sum(1 for c in claims.values() if any("isn't said" in f for f in c.get("flags", [])))
+        opening = sum(1 for c in claims.values() if any("teaser clip" in f for f in c.get("flags", [])))
+        inferred = len({(c["sid"], c["speaker"]) for c in claims.values() if c.get("speaker_inferred")})
+        def verb(n: int, one: str, many: str) -> str:
+            return one if n == 1 else many
+        parts = [x for x in (
+            f"{_n(nums, 'claim')} {verb(nums, 'gives', 'give')} a number not said at the cited moment" if nums else "",
+            f"{_n(opening, 'claim')} {verb(opening, 'comes', 'come')} from a video's opening, which may be a "
+            "teaser clip" if opening else "",
+            f"{_n(inferred, 'speaker name')} {verb(inferred, 'is', 'are')} not said in the video, its title or "
+            "description" if inferred else "") if x]
+        return ["Flagged for a second look: " + "; ".join(parts) + "."] if parts else []
 
     def _render(self, texts: dict, positions: list[dict], claims: dict) -> str:
         qs = self.data["sub_questions"]
@@ -572,8 +746,9 @@ class Project:
                "against the video's transcript.", "",
                "## Answer", "", self._expand(texts["answer"].strip(), claims), "",
                "## Coverage", "", self._coverage_line(),
-               f"Claims: {len(claims)} checked ({checks['quote']} exact quotes, {checks['quote-close']} close matches "
-               f"where captions misspell words, {checks['time']} checked by time only).", "",
+               f"Claims: {len(claims)} checked ({_n(checks['quote'], 'exact quote')}, "
+               f"{_n(checks['quote-close'], 'close match', 'close matches')} where captions spell a name differently, "
+               f"{checks['time']} checked by time only).", *self._flag_line(claims), "",
                "## Sub-questions", ""]
         out += [f"- **{k}** {v}" for k, v in qs.items()]
         for kind, title in (("agree", "Where they agree"), ("contradict", "Where they contradict each other")):
@@ -587,16 +762,22 @@ class Project:
                 if not group:
                     continue
                 out += [f"### {q} · {qs[q]}", ""]
-                for p in group:
+                for n, p in enumerate(group, 1):
+                    if kind == "contradict":
+                        out += [f"#### {p.get('label') or f'Contradiction {n}'}", ""]
                     for i, s in enumerate(p["sides"]):
                         label = s["label"] if kind == "agree" else f"Side {chr(65 + i)}: {s['label'] or 'Position'}"
                         out += [self._side_head(label, s["claims"], claims, total_read)]
                         out += self._side_lines(s["claims"], claims) + [""]
+                    if kind == "contradict":
+                        out += [f"*Note: {w}*" for w in self._overlaps(p["sides"], claims)]
+                        if out[-1] != "":
+                            out.append("")
         out += ["## Who said what", "", "| Speaker | Video | " + " | ".join(qs) + " |",
                 "|---|---|" + "---|" * len(qs)]
         grid: dict[tuple[str, str], dict[str, list[str]]] = {}
         for c in claims.values():
-            cell = grid.setdefault((c["speaker"], c["sid"]), {}).setdefault(c["q"], [])
+            cell = grid.setdefault((self._who(c), c["sid"]), {}).setdefault(c["q"], [])
             if c["stance"] not in cell:
                 cell.append(c["stance"])
         for (speaker, sid), cells in sorted(grid.items(), key=lambda kv: (kv[0][1], kv[0][0]))[:60]:
