@@ -266,7 +266,7 @@ def research_start(question: str, sub_questions: list[str], sources: list[str], 
         sub_questions: 3 to 7 sub-questions that break the question down; every video is read against them.
         sources: Any mix of video links, playlist or channel links, and "search:<words>" for a YouTube search.
         limit: Most videos to take from the sources (up to 50).
-        allow_whisper: Transcribe videos without captions locally (slow; needs the whisper extra).
+        allow_whisper: Transcribe videos without captions locally (slow; needs the whisper extra or whisper.cpp).
     """
     proj, notes = Project.create(_lib(), question, sub_questions, sources, limit, allow_whisper)
     return "\n\n".join([f"Research project `{proj.slug}` created with {len(proj.sources)} video(s).",

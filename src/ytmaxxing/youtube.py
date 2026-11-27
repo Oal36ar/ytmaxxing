@@ -2,15 +2,20 @@
 
 Transcripts come from captions first (fast, free). If a video has no captions or
 YouTube blocks the request, ytmaxxing can fall back to transcribing the audio
-locally with Whisper (install the `whisper` extra).
+locally with Whisper: faster-whisper (the `whisper` extra) or, if that isn't
+installed, a whisper.cpp `whisper-cli` already on the machine with a ggml model.
 """
 
 from __future__ import annotations
 
 import importlib.util
+import json
 import os
 import re
+import shutil
+import subprocess
 import tempfile
+from pathlib import Path
 from dataclasses import dataclass, field
 from urllib.parse import parse_qs, urlparse
 
@@ -168,8 +173,47 @@ def _transcript_api():
     return YouTubeTranscriptApi()
 
 
-def whisper_available() -> bool:
+WHISPER_HINT = ("install local transcription with: pip install 'ytmaxxing[whisper]', "
+                "or install whisper.cpp (e.g. `brew install whisper-cpp`) and put a ggml model in ~/.cache/whisper")
+
+# Preferred whisper.cpp models, best first; any other ggml-*.bin in the folder is used after these.
+_GGML_PREFERENCE = ("ggml-large-v3-turbo.bin", "ggml-large-v3.bin", "ggml-medium.bin", "ggml-small.bin",
+                    "ggml-base.bin")
+
+
+def faster_whisper_available() -> bool:
     return importlib.util.find_spec("faster_whisper") is not None
+
+
+def _whisper_cpp_binary() -> str | None:
+    explicit = os.environ.get("YTMAXXING_WHISPER_CPP")
+    if explicit:
+        return explicit if Path(explicit).is_file() else shutil.which(explicit)
+    return shutil.which("whisper-cli")
+
+
+def _whisper_cpp_model() -> Path | None:
+    explicit = os.environ.get("YTMAXXING_WHISPER_CPP_MODEL")
+    if explicit:
+        p = Path(explicit).expanduser()
+        return p if p.is_file() else None
+    folder = Path(os.environ.get("YTMAXXING_WHISPER_CPP_DIR", "~/.cache/whisper")).expanduser()
+    if not folder.is_dir():
+        return None
+    for name in _GGML_PREFERENCE:
+        if (folder / name).is_file():
+            return folder / name
+    others = sorted(p for p in folder.glob("ggml-*.bin") if p.is_file())
+    return others[0] if others else None
+
+
+def whisper_cpp_available() -> bool:
+    """whisper.cpp needs its binary, a ggml model and ffmpeg (to turn the audio into 16 kHz WAV)."""
+    return bool(_whisper_cpp_binary() and _whisper_cpp_model() and shutil.which("ffmpeg"))
+
+
+def whisper_available() -> bool:
+    return faster_whisper_available() or whisper_cpp_available()
 
 
 def fetch_captions(vid: str, languages: list[str] | None = None) -> Transcript:
@@ -210,24 +254,80 @@ def _decode_audio(path: str):
     return np.concatenate(chunks, axis=1).flatten().astype(np.float32) / 32768.0
 
 
-def transcribe_with_whisper(vid: str) -> Transcript:
-    """Download the audio and transcribe it locally. Slower, but works without captions."""
-    if not whisper_available():
-        raise YtmaxxingError("Whisper isn't installed. Install it with: pip install 'ytmaxxing[whisper]'")
+def _download_audio(vid: str, folder: str) -> str:
     import yt_dlp
+
+    opts = _ydl_opts(skip_download=False, format="bestaudio/best", outtmpl=os.path.join(folder, "%(id)s.%(ext)s"))
+    with yt_dlp.YoutubeDL(opts) as ydl:
+        info = ydl.extract_info(watch_url(vid), download=True)
+        return ydl.prepare_filename(info)
+
+
+def _transcribe_faster_whisper(path: str) -> Transcript:
     from faster_whisper import WhisperModel
 
-    with tempfile.TemporaryDirectory(prefix="ytmaxxing-") as tmp:
-        opts = _ydl_opts(skip_download=False, format="bestaudio/best",
-                         outtmpl=os.path.join(tmp, "%(id)s.%(ext)s"))
-        with yt_dlp.YoutubeDL(opts) as ydl:
-            info = ydl.extract_info(watch_url(vid), download=True)
-            path = ydl.prepare_filename(info)
-        model = WhisperModel(os.environ.get("YTMAXXING_WHISPER_MODEL", "small"),
-                             device="auto", compute_type="default")
-        segments, meta = model.transcribe(_decode_audio(path), vad_filter=True)
-        lines = [Line(s.start, s.text.strip()) for s in segments if s.text.strip()]
+    model = WhisperModel(os.environ.get("YTMAXXING_WHISPER_MODEL", "small"), device="auto", compute_type="default")
+    segments, meta = model.transcribe(_decode_audio(path), vad_filter=True)
+    lines = [Line(s.start, s.text.strip()) for s in segments if s.text.strip()]
     return Transcript(lines, meta.language, "whisper")
+
+
+def _parse_whisper_cpp_json(data: dict) -> Transcript:
+    """Read whisper-cli's `-oj` output: segments with millisecond offsets, plus the detected language."""
+    lines = []
+    for seg in data.get("transcription", []):
+        text = " ".join(str(seg.get("text", "")).split())
+        if text:
+            lines.append(Line(seg.get("offsets", {}).get("from", 0) / 1000.0, text))
+    return Transcript(lines, data.get("result", {}).get("language") or "und", "whisper")
+
+
+def _transcribe_whisper_cpp(path: str, folder: str) -> Transcript:
+    """Transcribe with a whisper.cpp binary already on the machine. Output goes to files, never stdout."""
+    wav = os.path.join(folder, "audio16k.wav")
+    conv = subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-i", path, "-ar", "16000", "-ac", "1", wav],
+                          capture_output=True, text=True)
+    if conv.returncode != 0:
+        raise YtmaxxingError(f"ffmpeg couldn't convert the audio: {conv.stderr.strip()[-300:]}")
+    base = os.path.join(folder, "transcript")
+    threads = str(min(8, os.cpu_count() or 4))
+    run = subprocess.run([_whisper_cpp_binary(), "-m", str(_whisper_cpp_model()), "-f", wav, "-l", "auto",
+                          "-t", threads, "-oj", "-of", base], capture_output=True, text=True)
+    if run.returncode != 0 or not os.path.exists(base + ".json"):
+        raise YtmaxxingError(f"whisper.cpp failed: {(run.stderr or run.stdout).strip()[-300:]}")
+    with open(base + ".json", encoding="utf-8", errors="replace") as f:
+        return _parse_whisper_cpp_json(json.load(f))
+
+
+def transcribe_with_whisper(vid: str) -> Transcript:
+    """Download the audio and transcribe it locally. Slower, but works without captions.
+    Uses faster-whisper when installed, otherwise a local whisper.cpp."""
+    if not whisper_available():
+        raise YtmaxxingError(f"Local transcription isn't set up. To use it, {WHISPER_HINT}.")
+    engine = _whisper_engine()
+    with tempfile.TemporaryDirectory(prefix="ytmaxxing-") as tmp:
+        path = _download_audio(vid, tmp)
+        if engine == "faster-whisper":
+            return _transcribe_faster_whisper(path)
+        return _transcribe_whisper_cpp(path, tmp)
+
+
+def _whisper_engine() -> str:
+    """Which local engine to use. YTMAXXING_WHISPER_ENGINE picks one ("faster-whisper" or "whisper.cpp");
+    otherwise faster-whisper when installed, then whisper.cpp. On Apple Silicon whisper.cpp runs on the GPU
+    and is usually several times faster, so set YTMAXXING_WHISPER_ENGINE=whisper.cpp there."""
+    wanted = os.environ.get("YTMAXXING_WHISPER_ENGINE", "").strip().lower().replace("_", "-")
+    if wanted in ("whisper.cpp", "whisper-cpp", "cpp"):
+        if not whisper_cpp_available():
+            raise YtmaxxingError("YTMAXXING_WHISPER_ENGINE asks for whisper.cpp, but whisper-cli, a ggml model "
+                                 "in ~/.cache/whisper or ffmpeg is missing.")
+        return "whisper.cpp"
+    if wanted in ("faster-whisper", "faster"):
+        if not faster_whisper_available():
+            raise YtmaxxingError("YTMAXXING_WHISPER_ENGINE asks for faster-whisper, but it isn't installed: "
+                                 "pip install 'ytmaxxing[whisper]'")
+        return "faster-whisper"
+    return "faster-whisper" if faster_whisper_available() else "whisper.cpp"
 
 
 def classify_error(message: str) -> str:
@@ -252,10 +352,9 @@ def fetch_transcript(vid: str, languages: list[str] | None = None, allow_whisper
         if allow_whisper and whisper_available():
             return transcribe_with_whisper(vid)
         hint = (
-            "YouTube is blocking requests from this network. Set YTMAXXING_PROXY to a proxy URL, "
-            "or install local transcription with: pip install 'ytmaxxing[whisper]'"
+            f"YouTube is blocking requests from this network. Set YTMAXXING_PROXY to a proxy URL, or {WHISPER_HINT}"
             if "Block" in reason or "429" in str(e)
-            else "Install local transcription to handle videos without captions: pip install 'ytmaxxing[whisper]'"
+            else f"To handle videos without captions, {WHISPER_HINT}"
         )
         msg = str(e).strip().splitlines()[0] if str(e).strip() else reason
         raise YtmaxxingError(f"Couldn't get captions ({reason}: {msg}). {hint}") from e

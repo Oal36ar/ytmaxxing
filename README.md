@@ -258,7 +258,11 @@ All optional, set as environment variables:
 | `YTMAXXING_HOME` | `~/ytmaxxing` | Where your library lives |
 | `YTMAXXING_LANGUAGES` | `en` | Preferred caption languages, e.g. `en,ar,es`. Falls back to any language the video has |
 | `YTMAXXING_PROXY` | none | Proxy URL for networks YouTube blocks (cloud servers, some VPNs) |
-| `YTMAXXING_WHISPER_MODEL` | `small` | Model for local transcription, e.g. `base`, `medium`, `large-v3` |
+| `YTMAXXING_WHISPER_MODEL` | `small` | faster-whisper model for local transcription, e.g. `base`, `medium`, `large-v3` |
+| `YTMAXXING_WHISPER_ENGINE` | auto | `faster-whisper` or `whisper.cpp`. Auto uses faster-whisper when installed, otherwise whisper.cpp |
+| `YTMAXXING_WHISPER_CPP` | `whisper-cli` on your PATH | Path to the whisper.cpp binary |
+| `YTMAXXING_WHISPER_CPP_MODEL` | best model found | A specific ggml model file for whisper.cpp |
+| `YTMAXXING_WHISPER_CPP_DIR` | `~/.cache/whisper` | Where ytmaxxing looks for ggml models (prefers `large-v3-turbo`, then `large-v3`, `medium`, `small`, `base`) |
 
 ## Troubleshooting
 
@@ -266,6 +270,13 @@ All optional, set as environment variables:
 
 ```bash
 claude mcp add ytmaxxing -s user -- uvx --from "ytmaxxing[whisper] @ git+https://github.com/Oal36ar/ytmaxxing" ytmaxxing serve
+```
+
+Already have [whisper.cpp](https://github.com/ggml-org/whisper.cpp)? ytmaxxing uses it without the extra when `whisper-cli`, `ffmpeg` and a ggml model in `~/.cache/whisper` are all present. On a Mac with Apple Silicon it runs on the GPU and is usually the faster choice: in one test it took about 2 minutes for a 17-minute video with `large-v3-turbo`, against about 5 with faster-whisper `small` on the CPU. Set `YTMAXXING_WHISPER_ENGINE=whisper.cpp` to use it even when the extra is installed:
+
+```bash
+brew install whisper-cpp ffmpeg
+mkdir -p ~/.cache/whisper && curl -L -o ~/.cache/whisper/ggml-large-v3-turbo.bin https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo.bin
 ```
 
 On a server or cloud machine, YouTube often blocks requests outright. Set `YTMAXXING_PROXY` to a residential proxy.
