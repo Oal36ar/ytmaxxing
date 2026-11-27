@@ -1,17 +1,33 @@
 <!doctype html><html><head><meta charset="utf-8">
-<!-- README header. Render at 1280×420 with a device scale factor of 2 → assets/banner.png (2560×840). Brand: brand/logo/usage-guide.md -->
-<link href="https://fonts.googleapis.com/css2?family=Familjen+Grotesk:wght@500;600;700&family=Martian+Mono:wght@400;500&display=swap" rel="stylesheet">
+<!-- README header, brand v2 (the press look, 27 Nov 2026). Render with brand/render.py: 1280×420 at a device scale factor of 2 → assets/banner.png (2560×840).
+     Stock card; the XX mark printed in cobalt ASCII; plain wordmark; the tagline in the tall serif with the star as its full stop; mono notes. -->
+<link href="https://fonts.googleapis.com/css2?family=Familjen+Grotesk:wght@500;700&family=Instrument+Serif&family=Martian+Mono:wght@500&display=block" rel="stylesheet">
 <style>
-html,body{margin:0;width:1280px;height:420px;overflow:hidden;background:#FBFAF6;color:#111111;font-family:'Familjen Grotesk',sans-serif}
-.wrap{position:absolute;left:72px;top:64px;right:72px}
-.lock{display:flex;align-items:center;gap:22px;font-weight:700;font-size:96px;letter-spacing:-.035em;line-height:1}
-.lock svg{width:104px;height:104px;flex:none}
-.tl{margin-top:34px;font-weight:500;font-size:34px;line-height:1.25;letter-spacing:-.015em;max-width:980px}
-.hl{background:linear-gradient(transparent 16%,#E6FF3B 16%,#E6FF3B 90%,transparent 90%);padding:0 .06em;margin:0 -.03em}
-.foot{position:absolute;left:72px;right:72px;bottom:44px;border-top:1.5px solid #111111;padding-top:14px;display:flex;gap:28px;font:400 15px/1 'Martian Mono';color:#111111}
-.foot span{white-space:nowrap}.cite{border:1.5px solid #111111;padding:2px 6px;font-weight:500}
-</style></head><body><div class="wrap">
-<div class="lock"><svg viewBox="0 0 100 100"><rect width="100" height="100" rx="14" fill="#E6FF3B"/><path d="M10 24L30 24L64 76L44 76ZM44 24L64 24L30 76L10 76ZM36 24L56 24L90 76L70 76ZM70 24L90 24L56 76L36 76Z" fill="#111111"/></svg>ytmaxxing</div>
-<div class="tl">Turn long YouTube videos into <span class="hl">skills, plans and notes</span> your AI keeps.</div></div>
-<div class="foot"><span class="cite">05:29</span><span>every claim linked to the second</span><span>MCP server · CLI · Claude Code plugin</span><span>no API key · MIT</span></div>
-</body></html>
+:root{--stock:#EEE9DD;--cobalt:#1E3BD9;--orange:#F0642A;--ink:#151515}
+*{box-sizing:border-box;margin:0}
+html,body{width:1280px;height:420px;overflow:hidden;background:var(--stock);color:var(--ink);font-family:'Familjen Grotesk',sans-serif}
+#mark{position:absolute;left:70px;top:60px;width:300px;height:300px}
+.mono{font-family:'Martian Mono',monospace;font-weight:500;font-size:20px;text-transform:uppercase;letter-spacing:.02em}
+.wm{position:absolute;left:420px;top:78px;font-weight:700;font-size:96px;letter-spacing:-.035em;line-height:1}
+.tag{position:absolute;left:422px;top:200px;width:820px;font-family:'Instrument Serif',serif;font-size:76px;line-height:.86;word-spacing:.06em;color:var(--cobalt)}
+.star{width:.5em;height:.5em;vertical-align:.04em;margin-left:.04em}
+.tr{position:absolute;right:56px;top:40px;text-align:right;line-height:1.3}
+.foot{position:absolute;left:56px;right:56px;bottom:30px;border-top:1.5px solid var(--ink);padding-top:12px;display:flex;justify-content:space-between;align-items:center}
+.cite{border:1.5px solid var(--ink);padding:2px 6px}
+</style></head><body>
+<canvas id="mark" width="600" height="600"></canvas>
+<div class="wm">ytmaxxing</div>
+<div class="tag">Watch it once.<br>Your AI keeps the skill<svg class="star" viewBox="0 0 100 100"><path id="star" fill="none" stroke="#F0642A" stroke-width="9" stroke-linecap="round"/><circle cx="50" cy="50" r="8" fill="#F0642A"/></svg></div>
+<script type="module">
+import { sampleImage, drawAscii } from "./vendor/ascii-magic-art/asciify.js";
+const STAR=(()=>{let d='';for(let k=0;k<8;k++){const a=k*Math.PI/4+(k%2?0.12:-0.05),r=k%2?40:48;d+=`M50 50 Q ${50+Math.cos(a+0.2)*r*0.5} ${50+Math.sin(a+0.2)*r*0.5} ${50+Math.cos(a)*r} ${50+Math.sin(a)*r} `;}return d;})();
+document.getElementById('star').setAttribute('d',STAR);
+await document.fonts.load('500 40px "Familjen Grotesk"'); await document.fonts.ready;
+// the XX mark drawn as a picture, then printed as ASCII: dense glyphs where the strokes are
+const src=document.createElement('canvas'); src.width=400; src.height=400; const s=src.getContext('2d');
+s.fillStyle='#fff'; s.fillRect(0,0,400,400); s.filter='blur(7px)'; s.fillStyle='#000'; s.scale(4,4);   // a soft edge, so the print thins out at the stroke edges
+s.fill(new Path2D('M10 24L30 24L64 76L44 76ZM44 24L64 24L30 76L10 76ZM36 24L56 24L90 76L70 76ZM70 24L90 24L56 76L36 76Z'));
+const g=document.getElementById('mark').getContext('2d'); g.fillStyle='#EEE9DD'; g.fillRect(0,0,600,600);
+drawAscii(g, sampleImage(src,{cols:34,rows:34}), {x:0,y:0,w:600,h:600,look:'dense',gap:.26,gamma:.85,contrast:.6,colour:'solid',ink:'#1E3BD9',paper:'#EEE9DD',invert:true,blockTint:.5});
+window.READY=true;
+</script></body></html>

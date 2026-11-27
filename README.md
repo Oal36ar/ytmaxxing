@@ -5,12 +5,12 @@
 <h3>Watch it once. Your AI keeps the skill.</h3>
 
 <p>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-111111?style=flat-square" alt="MIT license"></a>
-  <img src="https://img.shields.io/badge/python-3.10%2B-111111?style=flat-square&logo=python&logoColor=white" alt="Python 3.10+">
-  <img src="https://img.shields.io/badge/MCP-server-111111?style=flat-square" alt="MCP server">
-  <img src="https://img.shields.io/badge/Agent%20Skills-SKILL.md-111111?style=flat-square" alt="Agent Skills">
-  <img src="https://img.shields.io/badge/API%20key-not%20needed-111111?style=flat-square" alt="No API key needed">
-  <a href="https://github.com/Oal36ar/ytmaxxing/stargazers"><img src="https://img.shields.io/github/stars/Oal36ar/ytmaxxing?style=flat-square&color=111111" alt="GitHub stars"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-1E3BD9?style=flat-square&labelColor=151515" alt="MIT license"></a>
+  <img src="https://img.shields.io/badge/python-3.10%2B-1E3BD9?style=flat-square&labelColor=151515&logo=python&logoColor=white" alt="Python 3.10+">
+  <img src="https://img.shields.io/badge/MCP-server-1E3BD9?style=flat-square&labelColor=151515" alt="MCP server">
+  <img src="https://img.shields.io/badge/Agent%20Skills-SKILL.md-1E3BD9?style=flat-square&labelColor=151515" alt="Agent Skills">
+  <img src="https://img.shields.io/badge/API%20key-not%20needed-1E3BD9?style=flat-square&labelColor=151515" alt="No API key needed">
+  <a href="https://github.com/Oal36ar/ytmaxxing/stargazers"><img src="https://img.shields.io/github/stars/Oal36ar/ytmaxxing?style=flat-square&color=1E3BD9&labelColor=151515" alt="GitHub stars"></a>
 </p>
 
 <p>
@@ -69,6 +69,10 @@ Different videos are worth different things. Pick what you need, or let `max` do
 Every output is checked when it's saved: each timestamp link must land inside the video, and quoted words on the same line must be in the transcript at that moment. Your AI gets a list of what didn't match and fixes it.
 
 ## Research: one question, many videos
+
+<img src="assets/research-hero.png" alt="The thumbnails of the 15 videos in one real research run: one question, fifteen videos, one report, every citation checked" width="100%">
+
+<sub>The 15 videos of a real research run. Thumbnails belong to their creators; ytmaxxing is independent and not endorsed by them or by YouTube.</sub>
 
 Summarising one video is easy. Answering a question from twenty is where an AI usually skims, blends and invents. `research` is built to stop that:
 

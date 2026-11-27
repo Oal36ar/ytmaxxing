@@ -1,0 +1,4 @@
+glyphs.js: ascii-magic-art (MIT, Copyright (c) 2026 ASCII Magic, ascii-magic.com), copied unmodified from
+https://github.com/kailashsr38/ascii-magic-art at commit b324cb0. See LICENSE.
+
+asciify.js: the ASCII print look used by brand/banner.html and brand/social.html, built on glyphs.js.
